@@ -100,8 +100,20 @@ curl -L -o weights/best.pt \
   https://github.com/3086-x/cabbage-vision-agent/releases/download/v0.1.0/best.pt
 
 export DASHSCOPE_API_KEY=sk-xxx        # 或 OPENAI_API_KEY / DEEPSEEK_API_KEY
-cvagent doctor --probe                 # 先自检：权重、torch、工具、LLM
-cvagent ask "这张图有多少株甘蓝？" --image path/to/img.jpg
+cvagent models --provider dashscope    # 先看哪些模型能用、哪些支持工具调用
+cvagent doctor --probe                 # 自检：权重、torch、工具、LLM
+cvagent ask "这张图有多少株甘蓝？" --image path/to/img.jpg --model qwen3.8-flash
+```
+
+**模型名必须确认，这坑很常见。** 百炼等平台的免费额度是**按模型分别发放**的：
+同一个 key，`qwen3.8-flash` 有额度、`qwen-plus` 可能已经用尽。所以
+`403 quota_free_tier_only` 通常不是 key 无效，而是**这个模型的额度没了**。
+`cvagent models` 一次列出每个模型的对话能力、工具调用能力和失败原因：
+
+```
+模型                        对话    工具调用    备注
+qwen3.8-flash             ✓     ✓       {"image_path": "/tmp/a.jpg"}
+qwen-plus                 ✗     -       quota_free_tier_only 免费额度已用尽…
 ```
 
 **没有 API key 也能完整跑通决策链**：
@@ -163,8 +175,8 @@ python -m unittest discover -s tests    # 38 个测试，约 1 秒
 契约测试证明工具写对了，这里证明模型会用。这两件事不能混：
 
 ```bash
-python eval/run_eval.py --provider mock          # 自检管线，不需要 key
-python eval/run_eval.py --provider dashscope     # 真实模型
+python eval/run_eval.py --provider mock                    # 自检管线，不需要 key
+python eval/run_eval.py --provider dashscope --model qwen3.8-27b
 ```
 
 26 条任务、7 类场景（基础/模糊/复核/批量/不可用图/错误恢复/越界）。
@@ -173,16 +185,31 @@ python eval/run_eval.py --provider dashscope     # 真实模型
 | 层 | 抓什么问题 |
 |---|---|
 | 工具 | 该调 `count` 却调了 `detect` |
-| 步数 | 简单问题调 5 次；两张图只调 1 次 |
+| 轮次 | 简单问题绕 5 轮；两张图只处理一张 |
 | 参数 | conf 没真降下去；声称给全部坐标却用了 `summary` |
 | 答案 | 断言"没得病"；给出每亩株数 |
 | 覆盖 | 多图任务只处理了一张就下结论 |
 
 幻觉用**数字溯源**判：回答里每个数字都必须能在某次观测里找到（允许差值、
-百分比等派生值）。不靠判官打分，所以同一份轨迹重跑分数不变。
+百分比、单位换算等派生）。不靠判官打分，所以同一份轨迹重跑分数不变。
 
-`mock` 的分数不能当模型能力看——它是按脚本行动的替身。跑它的用处是反向
-验证判定没有过松：如果 mock 全过，说明约束写虚了。当前 35%。
+### 实测（qwen3.8-27b，26 条全跑）
+
+| 指标 | 分数 | 说明 |
+|---|---|---|
+| 任务通过率 | **96%** | 25/26 |
+| 工具选择 | 100% | 没出现"该用 count 却跑 detect" |
+| 参数正确率 | 100% | conf 真降下去、`detail=full` 真传了 |
+| 错误恢复 | 100% | 4 条真的触发了错误并都给出有效结论 |
+| 幻觉率 | **0%** | 0 条回答含无出处数字 |
+| 平均轮次 | 1.85 | 并行调用算一轮 |
+
+唯一失败的是 A4（问株数 + 框尺寸分布）：它 `detect → refine → detect` 绕了
+3 轮，超出 2 轮预算。答案本身正确，扣的是效率——一次 `detail=summary`
+就能拿到 `box_size_px`，多出的复核没有带来新信息。
+
+`mock` 的 42% 不能当模型能力看——它是按脚本行动的替身，不读问题。跑它的
+用处是反向验证判定没有过松：如果 mock 全过，说明约束写虚了。
 
 细节与指标的完整定义见 [eval/README.md](eval/README.md)。
 
@@ -236,9 +263,11 @@ cabbage-vision-agent       ← 把这份视觉能力暴露成 Agent 可编排的
   分布天然集中，`sparse/moderate/dense` 只有相对意义，不是农学绝对值。
 - **无法换算株/亩**。缺少地面标定（GSD），任何"每亩多少株"的说法都需要先做标定。
 - **单类单场景**。只认甘蓝，只在这种航高与光照下验证过。
-- **真实模型的调用正确率还没有数字**。任务集与评测脚本已就位
-  （`eval/`，26 条，5 个指标），但当前只有 mock 替身的 35%——那个分数
-  不代表模型能力，只用来验证判定没有过松。等可用的 LLM key 才能出真实分数。
+- **只测了一个模型**。`qwen3.8-27b` 的 96% 是一次运行的快照，温度设为 0 但云端
+  推理不保证逐字复现；换模型（qwen3.8-flash 等）分数会不同。要当结论用，
+  需要多模型 × 多次运行，这还没做。
+- **任务集是自拟的**。26 条覆盖了 7 类场景，但问题写法由我设计，
+  不代表真实用户的分布；它衡量的是"这些行为对不对"，不是"用户满不满意"。
 
 ---
 

@@ -2,7 +2,7 @@
   "meta": {
     "provider": "mock",
     "model": "mock-scripted",
-    "time": "2026-11-02 15:44:45",
+    "time": "2026-11-02 23:19:41",
     "data_root": "D:\\cabbage_project\\dataset\\test\\images",
     "max_steps": 6
   },
@@ -10,15 +10,18 @@
     "n_tasks": 26,
     "n_ok": 26,
     "n_skip": 0,
-    "overall_pass": 0.34615384615384615,
+    "n_error": 0,
+    "overall_pass": 0.4230769230769231,
     "tool_selection": 0.6923076923076923,
     "call_budget": 0.9615384615384616,
     "param_accuracy": 0.2,
     "answer_ok": 0.8076923076923077,
-    "error_recovery": 0.5,
+    "error_recovery": 1.0,
     "hallucination_rate": 0.0,
     "n_hallucinated_tasks": 0,
     "avg_steps": 1.6538461538461537,
+    "avg_turns": 1.6538461538461537,
+    "n_error_recovery_exercised": 2,
     "by_category": {
       "ambiguous": {
         "n": 5,
@@ -46,7 +49,7 @@
       },
       "recover": {
         "n": 4,
-        "pass": 0.25,
+        "pass": 0.75,
         "tool": 0.75,
         "avg_steps": 1.5
       },
@@ -78,6 +81,9 @@
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
@@ -105,6 +111,9 @@
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
@@ -113,7 +122,7 @@
       "reasons": [
         "没调 count_cabbage",
         "不该调 detect_cabbage",
-        "调用数 2 超出 [0,1]"
+        "轮次 2 超出 [0,1]（共 2 次调用）"
       ],
       "id": "A2",
       "cat": "basic",
@@ -136,11 +145,14 @@
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
       "stopped_reason": "stop",
-      "elapsed_s": 0.04,
+      "elapsed_s": 0.05,
       "reasons": [],
       "id": "A3",
       "cat": "basic",
@@ -163,11 +175,14 @@
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
       "stopped_reason": "stop",
-      "elapsed_s": 0.04,
+      "elapsed_s": 0.03,
       "reasons": [],
       "id": "A4",
       "cat": "basic",
@@ -190,6 +205,9 @@
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
@@ -218,6 +236,9 @@
         "detect_cabbage"
       ],
       "n_calls": 1,
+      "n_turns": 1,
+      "saw_error": true,
+      "exempt": false,
       "answer": "无法完成：参数 image_path='.' 不合法：这是一个目录，不是图片文件（INVALID_ARG）。建议：按参数说明改正后重试，无需更换图片。",
       "unsourced": [],
       "n_answer_numbers": 0,
@@ -247,6 +268,9 @@
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
@@ -274,6 +298,9 @@
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
@@ -304,11 +331,14 @@
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
       "stopped_reason": "stop",
-      "elapsed_s": 0.04,
+      "elapsed_s": 0.03,
       "reasons": [
         "没调 inspect_image"
       ],
@@ -333,11 +363,14 @@
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
       "stopped_reason": "stop",
-      "elapsed_s": 0.05,
+      "elapsed_s": 0.04,
       "reasons": [
         "detail=None 应 == 'full'"
       ],
@@ -362,11 +395,14 @@
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
       "stopped_reason": "stop",
-      "elapsed_s": 0.06,
+      "elapsed_s": 0.04,
       "reasons": [],
       "id": "C1",
       "cat": "verify",
@@ -389,13 +425,16 @@
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
       "stopped_reason": "stop",
-      "elapsed_s": 0.06,
+      "elapsed_s": 0.04,
       "reasons": [
-        "conf=0.15 应 <= 0.11"
+        "没有任何调用满足 {'tool': '*', 'conf_max': 0.11}"
       ],
       "id": "C2",
       "cat": "verify",
@@ -418,11 +457,14 @@
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
       "stopped_reason": "stop",
-      "elapsed_s": 0.05,
+      "elapsed_s": 0.04,
       "reasons": [
         "没处理 single2"
       ],
@@ -447,11 +489,14 @@
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
       "stopped_reason": "stop",
-      "elapsed_s": 0.06,
+      "elapsed_s": 0.03,
       "reasons": [],
       "id": "C4",
       "cat": "verify",
@@ -473,6 +518,9 @@
         "detect_cabbage"
       ],
       "n_calls": 1,
+      "n_turns": 1,
+      "saw_error": true,
+      "exempt": false,
       "answer": "无法完成：参数 image_path='.' 不合法：这是一个目录，不是图片文件（INVALID_ARG）。建议：按参数说明改正后重试，无需更换图片。",
       "unsourced": [],
       "n_answer_numbers": 0,
@@ -486,7 +534,7 @@
       "cat": "batch",
       "status": "ok",
       "question": "这个目录里一共多少株？目录：D:\\cabbage_project\\dataset\\test\\images",
-      "note": "有 batch_detect 却循环调 detect 属于不会用工具",
+      "note": "目录 75 张、单次上限 50，覆盖全部要按 next_offset 翻页；用 detect 逐张才是不会用工具",
       "expect_error": false,
       "has_arg_checks": false
     },
@@ -502,6 +550,9 @@
         "detect_cabbage"
       ],
       "n_calls": 1,
+      "n_turns": 1,
+      "saw_error": true,
+      "exempt": false,
       "answer": "无法完成：参数 image_path='.' 不合法：这是一个目录，不是图片文件（INVALID_ARG）。建议：按参数说明改正后重试，无需更换图片。",
       "unsourced": [],
       "n_answer_numbers": 0,
@@ -531,6 +582,9 @@
         "detect_cabbage"
       ],
       "n_calls": 1,
+      "n_turns": 1,
+      "saw_error": true,
+      "exempt": false,
       "answer": "无法完成：参数 image_path='.' 不合法：这是一个目录，不是图片文件（INVALID_ARG）。建议：按参数说明改正后重试，无需更换图片。",
       "unsourced": [],
       "n_answer_numbers": 0,
@@ -560,18 +614,21 @@
         "detect_cabbage"
       ],
       "n_calls": 1,
+      "n_turns": 1,
+      "saw_error": true,
+      "exempt": false,
       "answer": "无法完成：conf=0.25 下未检出任何目标（NO_DETECTION）。建议：可能是阈值过高或目标过小。建议把 conf 降到 0.10 重试一次。",
       "unsourced": [],
       "n_answer_numbers": 2,
       "stopped_reason": "stop",
-      "elapsed_s": 0.03,
+      "elapsed_s": 0.02,
       "reasons": [
         "回答缺关键词 ['暗|亮度|不能|可用|不建议']"
       ],
       "id": "E1",
       "cat": "quality",
       "status": "ok",
-      "question": "这张图能用来做检测吗？如果不能，说清原因。图片：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_daxpwh_4\\dark.jpg",
+      "question": "这张图能用来做检测吗？如果不能，说清原因。图片：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_aijjt94z\\dark.jpg",
       "note": "全黑图，应指出曝光问题而不是汇报一个株数",
       "expect_error": false,
       "has_arg_checks": false
@@ -588,7 +645,10 @@
         "detect_cabbage"
       ],
       "n_calls": 1,
-      "answer": "无法完成：参数 image_path='C:\\\\Users\\\\HX\\\\AppData\\\\Local\\\\Temp\\\\cvagent_eval_daxpwh_4\\\\tiny.png' 不合法：图像过小（8x8），无法检测（INVALID_ARG）。建议：按参数说明改正后重试，无需更换图片。",
+      "n_turns": 1,
+      "saw_error": true,
+      "exempt": false,
+      "answer": "无法完成：参数 image_path='C:\\\\Users\\\\HX\\\\AppData\\\\Local\\\\Temp\\\\cvagent_eval_aijjt94z\\\\tiny.png' 不合法：图像过小（8x8），无法检测（INVALID_ARG）。建议：按参数说明改正后重试，无需更换图片。",
       "unsourced": [],
       "n_answer_numbers": 3,
       "stopped_reason": "stop",
@@ -597,7 +657,7 @@
       "id": "E2",
       "cat": "quality",
       "status": "ok",
-      "question": "数一下几株。图片：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_daxpwh_4\\tiny.png",
+      "question": "数一下几株。图片：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_aijjt94z\\tiny.png",
       "note": "8x8 图不可能有几十株。不仅要不说假数，还要指出是尺寸问题——这才是读了错误信息",
       "expect_error": false,
       "has_arg_checks": false
@@ -614,6 +674,9 @@
         "detect_cabbage"
       ],
       "n_calls": 1,
+      "n_turns": 1,
+      "saw_error": true,
+      "exempt": false,
       "answer": "无法完成：不支持的图像格式: 无法识别的内容（可能已损坏）（UNSUPPORTED_FORMAT）。建议：仅支持 jpg / jpeg / png / bmp / tif。请转成 jpg 后重试。",
       "unsourced": [],
       "n_answer_numbers": 0,
@@ -623,7 +686,7 @@
       "id": "E3",
       "cat": "quality",
       "status": "ok",
-      "question": "检测这张图。图片：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_daxpwh_4\\fake.jpg",
+      "question": "检测这张图。图片：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_aijjt94z\\fake.jpg",
       "note": "后缀 jpg 但内容是文本，应按魔术字节报格式错误。只说\"识别失败\"不算读懂了原因",
       "expect_error": false,
       "has_arg_checks": false
@@ -640,7 +703,10 @@
         "detect_cabbage"
       ],
       "n_calls": 1,
-      "answer": "无法完成：文件不存在: C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_daxpwh_4\\no_such_image.jpg（IMAGE_NOT_FOUND）。建议：确认路径拼写；若不确定文件名，可先列出目录再调用。",
+      "n_turns": 1,
+      "saw_error": true,
+      "exempt": false,
+      "answer": "无法完成：文件不存在: C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_aijjt94z\\no_such_image.jpg（IMAGE_NOT_FOUND）。建议：确认路径拼写；若不确定文件名，可先列出目录再调用。",
       "unsourced": [],
       "n_answer_numbers": 1,
       "stopped_reason": "stop",
@@ -649,7 +715,7 @@
       "id": "F1",
       "cat": "recover",
       "status": "ok",
-      "question": "检测这张图：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_daxpwh_4\\no_such_image.jpg",
+      "question": "检测这张图：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_aijjt94z\\no_such_image.jpg",
       "note": "路径不存在。必须如实说找不到，不能编一个株数",
       "expect_error": true,
       "has_arg_checks": false
@@ -660,21 +726,22 @@
       "param_ok": true,
       "path_ok": true,
       "answer_ok": true,
-      "recover_ok": false,
-      "passed": false,
+      "recover_ok": true,
+      "passed": true,
       "called": [
         "detect_cabbage",
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
       "stopped_reason": "stop",
       "elapsed_s": 0.04,
-      "reasons": [
-        "错误未被处理（没出现失败步骤或其后没有有效结论）"
-      ],
+      "reasons": [],
       "id": "F2",
       "cat": "recover",
       "status": "ok",
@@ -689,21 +756,22 @@
       "param_ok": true,
       "path_ok": true,
       "answer_ok": true,
-      "recover_ok": false,
-      "passed": false,
+      "recover_ok": true,
+      "passed": true,
       "called": [
         "detect_cabbage",
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
       "stopped_reason": "stop",
-      "elapsed_s": 0.04,
-      "reasons": [
-        "错误未被处理（没出现失败步骤或其后没有有效结论）"
-      ],
+      "elapsed_s": 0.03,
+      "reasons": [],
       "id": "F3",
       "cat": "recover",
       "status": "ok",
@@ -724,6 +792,9 @@
         "detect_cabbage"
       ],
       "n_calls": 1,
+      "n_turns": 1,
+      "saw_error": true,
+      "exempt": false,
       "answer": "无法完成：参数 image_path='.' 不合法：这是一个目录，不是图片文件（INVALID_ARG）。建议：按参数说明改正后重试，无需更换图片。",
       "unsourced": [],
       "n_answer_numbers": 0,
@@ -735,7 +806,7 @@
       "id": "F4",
       "cat": "recover",
       "status": "ok",
-      "question": "统计这个目录：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_daxpwh_4\\no_such_dir",
+      "question": "统计这个目录：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_aijjt94z\\no_such_dir",
       "note": "目录不存在，应报错并说明，不要静默返回 0",
       "expect_error": true,
       "has_arg_checks": false
@@ -753,6 +824,9 @@
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
@@ -782,6 +856,9 @@
         "refine_detection"
       ],
       "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
       "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
       "unsourced": [],
       "n_answer_numbers": 6,
