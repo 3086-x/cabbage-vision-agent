@@ -173,5 +173,55 @@ class TestInspectImage(unittest.TestCase):
             self.assertIn("assessment", out)
 
 
+class TestBatchPagination(unittest.TestCase):
+    """批量检测必须能翻页。
+
+    起因是评测里发现模型在 75 张的目录上把同一个调用重试了 12 次：
+    工具说"仅处理前 N 张"却没有任何参数能继续，模型只能干瞪眼。
+    """
+
+    def _dir(self, n: int) -> Path:
+        d = Path(tempfile.mkdtemp())
+        for i in range(n):
+            (d / f"img_{i:03d}.jpg").write_bytes(b"\xff\xd8\xff\xd9")
+        return d
+
+    def test_first_page_reports_next_offset(self):
+        reg, _ = make_registry(count=5)
+        d = self._dir(12)
+        out = reg.dispatch("batch_detect", {"directory": str(d), "limit": 5})
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["n_processed"], 5)
+        self.assertTrue(out["truncated"])
+        self.assertEqual(out["next_offset"], 5)
+        self.assertIn("offset=5", out["note"])
+
+    def test_last_page_closes_the_loop(self):
+        reg, _ = make_registry(count=5)
+        d = self._dir(12)
+        out = reg.dispatch("batch_detect", {"directory": str(d), "limit": 10, "offset": 10})
+        self.assertEqual(out["n_processed"], 2)
+        self.assertFalse(out["truncated"])
+        self.assertIsNone(out["next_offset"], "没有下一页时必须是 None，不能让模型继续翻")
+
+    def test_pages_do_not_overlap(self):
+        reg, _ = make_registry(count=1)
+        d = self._dir(6)
+        a = reg.dispatch("batch_detect", {"directory": str(d), "limit": 3})
+        b = reg.dispatch("batch_detect", {"directory": str(d), "limit": 3, "offset": a["next_offset"]})
+        names_a = [r["file"] for r in a["rows_top"]]
+        names_b = [r["file"] for r in b["rows_top"]]
+        self.assertEqual(set(names_a) & set(names_b), set())
+        self.assertEqual(len(set(names_a) | set(names_b)), 6)
+
+    def test_offset_out_of_range_is_explained(self):
+        reg, _ = make_registry(count=1)
+        d = self._dir(3)
+        out = reg.dispatch("batch_detect", {"directory": str(d), "offset": 99})
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["error"]["code"], "INVALID_ARG")
+        self.assertIn("3", out["error"]["message"], "要告诉模型目录到底有多少张，它才能修正")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

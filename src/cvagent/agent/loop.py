@@ -54,6 +54,10 @@ class Step:
     args: dict
     observation: dict
     ok: bool
+    # 第几轮决策产生的。模型可以在一轮里并行请求多个工具，
+    # 这时"调用次数"会大于"轮次"——预算该按轮次算，否则并行调用的
+    # 高效行为会被当成浪费步数惩罚。
+    turn: int = 0
     elapsed_ms: float = 0.0
 
     def brief(self) -> str:
@@ -83,6 +87,11 @@ class Trajectory:
         return len(self.steps)
 
     @property
+    def n_turns(self) -> int:
+        """决策轮数。并行调用多个工具算一轮。"""
+        return max((s.turn for s in self.steps), default=-1) + 1
+
+    @property
     def n_failed_calls(self) -> int:
         return sum(1 for s in self.steps if not s.ok)
 
@@ -94,10 +103,11 @@ class Trajectory:
             "stopped_reason": self.stopped_reason,
             "elapsed_s": round(self.elapsed_s, 2),
             "n_tool_calls": self.n_tool_calls,
+            "n_turns": self.n_turns,
             "n_failed_calls": self.n_failed_calls,
             "usage": self.usage,
             "steps": [
-                {"index": s.index, "tool": s.tool, "args": s.args, "ok": s.ok,
+                {"index": s.index, "turn": s.turn, "tool": s.tool, "args": s.args, "ok": s.ok,
                  "elapsed_ms": round(s.elapsed_ms, 1), "observation": s.observation}
                 for s in self.steps
             ],
@@ -154,7 +164,8 @@ class Agent:
                 elapsed = (time.perf_counter() - st) * 1000
                 args = _safe_json(call.arguments)
                 step = Step(index=len(steps), tool=call.name, args=args,
-                            observation=obs, ok=bool(obs.get("ok")), elapsed_ms=elapsed)
+                            observation=obs, ok=bool(obs.get("ok")), elapsed_ms=elapsed,
+                            turn=i)
                 steps.append(step)
                 messages.append(Message(
                     role="tool",

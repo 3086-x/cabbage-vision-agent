@@ -162,5 +162,41 @@ class TestHistoryCompaction(unittest.TestCase):
         self.assertFalse(json.loads(tool_msgs[-1].content).get("_compacted"))
 
 
+class TestParallelToolCalls(unittest.TestCase):
+    """一轮里请求多个工具时，轮次 != 调用次数。
+
+    这两者必须分开算：步数预算按轮次，否则模型一次发两个并行调用
+    （比如同时查两张图）就会被当成"浪费了两步"而判超预算。
+    """
+
+    def test_parallel_calls_share_one_turn(self):
+        reg = ToolRegistry(build_tools(FakeEngine()))
+        parallel = Completion(
+            content=None,
+            tool_calls=[
+                ToolCall(id="a", name="detect_cabbage", arguments=json.dumps({"image_path": "x.jpg"})),
+                ToolCall(id="b", name="count_cabbage", arguments=json.dumps({"image_path": "y.jpg"})),
+            ],
+            finish_reason="tool_calls",
+        )
+        traj = Agent(ScriptedProvider([parallel]), reg, max_steps=4).run("q")
+        self.assertEqual(traj.n_tool_calls, 2)
+        self.assertEqual(traj.n_turns, 1)
+        self.assertEqual([s.turn for s in traj.steps], [0, 0])
+
+    def test_turn_increments_across_rounds(self):
+        reg = ToolRegistry(build_tools(FakeEngine()))
+        traj = Agent(ScriptedProvider([detect_call("c1"), detect_call("c2")]), reg, max_steps=4).run("q")
+        self.assertEqual(traj.n_turns, 2)
+        self.assertEqual([s.turn for s in traj.steps], [0, 1])
+
+    def test_to_dict_carries_turn(self):
+        reg = ToolRegistry(build_tools(FakeEngine()))
+        traj = Agent(ScriptedProvider([detect_call("c1")]), reg, max_steps=2).run("q")
+        d = traj.to_dict()
+        self.assertEqual(d["n_turns"], 1)
+        self.assertIn("turn", d["steps"][0])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

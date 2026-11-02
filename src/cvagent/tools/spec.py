@@ -96,6 +96,11 @@ def build_tools(engine) -> list[Tool]:
             "megapixels": round(w * h / 1e6, 2),
             "mean_brightness": round(mean, 1),
             "edge_strength": round(edge, 2),
+            # 显式给出量纲与满值。不写的话模型会自己补"满值 255"这类常识，
+            # 虽然是对的，但那个 255 在观测里找不到，会被溯源检查判成无出处。
+            # 与其放宽检查，不如把量纲作为事实交给它。
+            "brightness_scale": 255,
+            "edge_scale": 255,
             "assessment": "偏暗" if mean < 60 else ("偏亮" if mean > 200 else "曝光正常"),
         }
 
@@ -147,7 +152,7 @@ def build_tools(engine) -> list[Tool]:
             "note": "stability=stable 表示两次阈值下计数差异 <=5%，结论较可信",
         }
 
-    def batch_detect(directory: str, conf: float = 0.25, limit: int = 10) -> dict:
+    def batch_detect(directory: str, conf: float = 0.25, limit: int = 50, offset: int = 0) -> dict:
         from pathlib import Path
 
         from ..config import ROOT  # noqa: F401
@@ -164,7 +169,11 @@ def build_tools(engine) -> list[Tool]:
         if not files:
             raise InvalidArgument("directory", directory, "目录内无受支持的图片")
         limit = max(1, min(int(limit), 50))
-        picked = files[:limit]
+        offset = max(0, int(offset))
+        picked = files[offset:offset + limit]
+        if not picked:
+            raise InvalidArgument(
+                "offset", offset, f"超出范围，目录共 {len(files)} 张（offset 从 0 开始）")
         rows, failed = [], []
         for f in picked:
             try:
@@ -173,19 +182,38 @@ def build_tools(engine) -> list[Tool]:
             except Exception as e:  # noqa: BLE001 - 批量里单张失败不应中断
                 failed.append({"file": f.name, "error": str(e)})
         counts = [r["count"] for r in rows]
+        next_offset = offset + len(picked)
+        truncated = next_offset < len(files)
+
+        # 逐图明细只回前几名。50 张全名列会把观测顶到几千字符、被预算截断，
+        # 模型看到的是残缺列表；不如直接给极值和前几名，其余用计数说明。
+        ranked = sorted(rows, key=lambda r: r["count"], reverse=True)
+        top = ranked[:6]
         return {
             "ok": True,
             "directory": str(d),
             "n_files_total": len(files),
             "n_processed": len(rows),
             "n_failed": len(failed),
+            "offset": offset,
+            # 分页信息必须显式返回：早先只回一句"仅处理前 N 张"却没有 offset 参数，
+            # 模型在 75 张的目录上无法继续，只能反复重试同一次调用。
+            "next_offset": next_offset if truncated else None,
+            "truncated": truncated,
             "total_count": sum(counts),
             "mean_count": round(sum(counts) / len(counts), 1) if counts else 0,
             "min_count": min(counts) if counts else 0,
             "max_count": max(counts) if counts else 0,
-            "rows": rows,
+            "max_file": ranked[0]["file"] if ranked else None,
+            "min_file": ranked[-1]["file"] if ranked else None,
+            "rows_top": top,
+            "rows_omitted": max(0, len(rows) - len(top)),
             "failed": failed,
-            "note": f"仅处理前 {len(picked)} 张" if len(files) > len(picked) else "已处理全部",
+            "note": (
+                f"本次处理第 {offset + 1}-{next_offset} 张（共 {len(files)} 张）。"
+                f"还有 {len(files) - next_offset} 张未处理，用 offset={next_offset} 继续。"
+                if truncated else f"已处理全部 {len(files)} 张"
+            ),
         }
 
     return [
@@ -253,13 +281,15 @@ def build_tools(engine) -> list[Tool]:
             name="batch_detect",
             description=(
                 "对目录内的图片批量检测并汇总（总数、均值、极值、逐文件计数）。"
-                "当用户给出一个文件夹、或要求对比多张图时使用。单次最多 50 张。"
+                "当用户给出一个文件夹、或要求对比多张图时使用。单次最多 50 张；"
+                "返回里的 truncated=true 时，用 next_offset 继续处理剩下的。"
             ),
             parameters=_schema(
                 {
                     "directory": {"type": "string", "description": "包含图片的目录路径"},
                     "conf": _CONF,
-                    "limit": {"type": "integer", "description": "最多处理多少张，默认 10，上限 50", "minimum": 1, "maximum": 50},
+                    "limit": {"type": "integer", "description": "本次最多处理多少张，默认 50（一次跑完尽量别分页）", "minimum": 1, "maximum": 50},
+                    "offset": {"type": "integer", "description": "从第几张开始（从 0 计）。上一页返回的 next_offset 直接填这里", "minimum": 0},
                 },
                 ["directory"],
             ),
