@@ -11,7 +11,7 @@
 
 ---
 
-## 一次真实运行
+## 一次运行
 
 问：*这张图里有多少株甘蓝？长势密不密？*
 
@@ -23,9 +23,16 @@
 回答：*该图共 50 株，密度 moderate。conf=0.25 时检出 49 株，降到 0.15 后为 50 株
 （差 +1，稳定性 stable）。结论取复核后的计数。*
 
-注意第二行**不是人写死的流程**。`detect_cabbage` 返回 `n_low=2`（2 个低置信框），
-模型据此判断"这个数字可能不稳"，自己决定降阈值复核，再把两次结果对比后给出结论。
+> **这条轨迹由离线 provider（`--provider mock`）驱动**。两次工具调用都真实执行在
+> GPU 上，株数是真的；但"发现 2 个低置信框后决定降阈值复核"这一步是脚本策略，
+> 不是模型判断。接入真实模型后的记录会替换这里——在那之前，这个仓库证明的是
+> **工具契约与循环工程可用**，而不是模型选工具的水平。
+
 完整轨迹见 [examples/transcript_single_image.md](examples/transcript_single_image.md)。
+
+第二行是整个设计的落点：`detect_cabbage` 返回 `n_low=2`，说明有两个框置信度低于
+0.5，计数可能不稳。`refine_detection` 让"要不要复核"成为一个可执行的决策，
+而不是开发者写死的流程。
 
 ---
 
@@ -88,8 +95,9 @@ git clone https://github.com/3086-x/cabbage-vision-agent.git
 cd cabbage-vision-agent
 pip install -e .
 
-# 权重（5.5MB，不走 Git，放在 Release）
-# 也可以从检测仓库复制：cvagent setup-weights --from ../cabbage-detection/weights/best.pt
+# 权重 5.5MB，不走 Git 历史，从 Release 下载
+curl -L -o weights/best.pt \
+  https://github.com/3086-x/cabbage-vision-agent/releases/download/v0.1.0/best.pt
 
 export DASHSCOPE_API_KEY=sk-xxx        # 或 OPENAI_API_KEY / DEEPSEEK_API_KEY
 cvagent doctor --probe                 # 先自检：权重、torch、工具、LLM
