@@ -156,6 +156,70 @@ def cmd_doctor(args) -> int:
     return 0 if ok else 1
 
 
+def cmd_models(args) -> int:
+    """探测哪些模型名在当前 key 下真的可用，并验证是否支持 function calling。
+
+    存在的理由很具体：同一个 key 下，不同模型的配额、开通状态、是否支持 tools
+    完全不同，而报错码还各不相同（403 FreeTierOnly / 429 limit_requests /
+    404 model_not_found / 403 access_denied）。靠逐个手写 curl 试太慢，
+    而"key 是不是没给我"这类误判会让排查走错方向。
+    """
+    from .llm.registry import build_provider
+
+    names = [m.strip() for m in (args.candidates or "").split(",") if m.strip()]
+    if not names:
+        names = list(DEFAULT_CANDIDATES)
+
+    tool = {
+        "type": "function",
+        "function": {
+            "name": "count_cabbage",
+            "description": "统计图片中的甘蓝株数",
+            "parameters": {
+                "type": "object",
+                "properties": {"image_path": {"type": "string", "description": "图片路径"}},
+                "required": ["image_path"],
+            },
+        },
+    }
+    from .llm.base import Message
+
+    print(f"{'模型':<26}{'对话':<6}{'工具调用':<8}备注")
+    print("─" * 78)
+    usable: list[str] = []
+    for name in names:
+        try:
+            p = build_provider(args.provider, name)
+            c = p.complete([Message("user", "数一下这张图有几株甘蓝：/tmp/a.jpg")], [tool])
+            if c.tool_calls and c.tool_calls[0].name == "count_cabbage":
+                print(f"{name:<26}{'✓':<6}{'✓':<8}{c.tool_calls[0].arguments[:40]}")
+                usable.append(name)
+            else:
+                txt = (c.content or "").strip()
+                print(f"{name:<26}{'✓':<6}{'✗':<8}未调用工具：{txt[:40]}")
+        except Exception as e:  # noqa: BLE001
+            code = getattr(e, "code", None) or type(e).__name__
+            hint = (getattr(e, "hint", None) or "").split("。")[0][:44]
+            print(f"{name:<26}{'✗':<6}{'-':<8}{code} {hint}")
+
+    print("─" * 78)
+    if usable:
+        print(f"可用于 Agent 的模型（{len(usable)} 个）：{', '.join(usable)}")
+        print(f"用法：cvagent ask \"...\" --provider {args.provider or 'dashscope'} --model {usable[0]}")
+        print(f"或写入环境变量：CVAGENT_MODEL={usable[0]}")
+    else:
+        print("没有模型既能对话又支持 function calling，Agent 路径无法运行。")
+    return 0 if usable else 1
+
+
+# 只用来看图说话的名字容易被漏掉，这里给一份常见候选；可用 --candidates 覆盖。
+DEFAULT_CANDIDATES = (
+    "qwen3.8-flash", "qwen3.8-27b", "qwen3.8-max-0902",
+    "deepseek-v4.1-flash", "kimi-k3", "glm-5.3",
+    "qwen-plus", "qwen-turbo", "qwen-flash",
+)
+
+
 def cmd_setup_weights(args) -> int:
     from . import config
 
@@ -185,7 +249,7 @@ def cmd_replay(args) -> int:
         steps=[
             Step(index=s["index"], tool=s["tool"], args=s.get("args", {}),
                  observation=s.get("observation", {}), ok=s.get("ok", True),
-                 elapsed_ms=s.get("elapsed_ms", 0.0))
+                 elapsed_ms=s.get("elapsed_ms", 0.0), turn=s.get("turn", 0))
             for s in data.get("steps", [])
         ],
     )
@@ -232,6 +296,11 @@ def build_parser() -> argparse.ArgumentParser:
     doc.add_argument("--probe", action="store_true", help="实际发一次请求验证 LLM 可用")
     doc.add_argument("--provider", help="指定要探测的 provider")
     doc.set_defaults(func=cmd_doctor)
+
+    m = sub.add_parser("models", help="探测哪些模型可用且支持工具调用")
+    m.add_argument("--provider", help="openai / dashscope / deepseek / 任意兼容网关")
+    m.add_argument("--candidates", help="逗号分隔的模型名，覆盖内置候选")
+    m.set_defaults(func=cmd_models)
 
     s = sub.add_parser("setup-weights", help="从主仓库复制权重")
     s.add_argument("--from", dest="from_path", required=True)

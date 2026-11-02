@@ -33,7 +33,7 @@ MAX_HISTORY_OBSERVATIONS = int(os.getenv("CVAGENT_MAX_HISTORY", "6"))
 LLM_PROVIDER = os.getenv("CVAGENT_LLM", "auto")
 LLM_MODEL = os.getenv("CVAGENT_MODEL", "")
 LLM_TEMPERATURE = float(os.getenv("CVAGENT_TEMPERATURE", "0.0"))
-LLM_TIMEOUT = float(os.getenv("CVAGENT_LLM_TIMEOUT", "60"))
+LLM_TIMEOUT = float(os.getenv("CVAGENT_LLM_TIMEOUT", "120"))
 # 境外端点常需代理；国内端点直连更强。设成 provider 级参数而不是全局环境变量，
 # 避免把 DashScope 的请求也绕一圈代理。
 LLM_PROXY = os.getenv("CVAGENT_PROXY", "")
