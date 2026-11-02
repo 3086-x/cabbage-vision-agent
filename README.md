@@ -133,7 +133,7 @@ cvagent ask "这张图有多少株？" --image img.jpg --provider mock
 ## 可验证性
 
 ```bash
-python -m unittest discover -s tests    # 34 个测试，0.8 秒
+python -m unittest discover -s tests    # 38 个测试，约 1 秒
 ```
 
 测试**不加载权重、不联网**，在任何机器上都能跑。覆盖的是契约而非模型行为：
@@ -143,6 +143,35 @@ python -m unittest discover -s tests    # 34 个测试，0.8 秒
 - `detail=full` 超预算 → 保留 `count`，砍掉 `boxes`，标记 `truncated`
 - 步数打满 → 不强杀，发一次不带 tools 的请求逼出结论，`stopped_reason=max_steps`
 - 历史压缩 → 所有 `tool_call_id` 保持配对，最新一条观测保持完整
+- 高阈值命中低阈值缓存 → 必须按本次阈值过滤框，不能把 0.15 的结果当成 0.25 的
+
+## 评测（工具用得对不对）
+
+契约测试证明工具写对了，这里证明模型会用。这两件事不能混：
+
+```bash
+python eval/run_eval.py --provider mock          # 自检管线，不需要 key
+python eval/run_eval.py --provider dashscope     # 真实模型
+```
+
+26 条任务、7 类场景（基础/模糊/复核/批量/不可用图/错误恢复/越界）。
+判定分五层，全部基于轨迹的机器可检事实，不用 LLM-as-judge：
+
+| 层 | 抓什么问题 |
+|---|---|
+| 工具 | 该调 `count` 却调了 `detect` |
+| 步数 | 简单问题调 5 次；两张图只调 1 次 |
+| 参数 | conf 没真降下去；声称给全部坐标却用了 `summary` |
+| 答案 | 断言"没得病"；给出每亩株数 |
+| 覆盖 | 多图任务只处理了一张就下结论 |
+
+幻觉用**数字溯源**判：回答里每个数字都必须能在某次观测里找到（允许差值、
+百分比等派生值）。不靠判官打分，所以同一份轨迹重跑分数不变。
+
+`mock` 的分数不能当模型能力看——它是按脚本行动的替身。跑它的用处是反向
+验证判定没有过松：如果 mock 全过，说明约束写虚了。当前 35%。
+
+细节与指标的完整定义见 [eval/README.md](eval/README.md)。
 
 ---
 
@@ -157,6 +186,10 @@ src/cvagent/
 ├─ agent/      规划-执行-观察循环，含步数收束与历史压缩
 ├─ report.py   轨迹落盘（trajectory.json + report.md）
 └─ cli.py      ask / detect / doctor / tools / replay
+
+eval/
+├─ tasks.yaml   26 条任务，每条带期望工具序列与可机器判定的答案约束
+└─ run_eval.py  五层判定 + 数字溯源，输出 json 与 md 报告
 ```
 
 不引 langchain。全部需求是"多轮消息 + function calling"，120 行客户端就够，
@@ -185,8 +218,9 @@ cabbage-vision-agent       ← 把这份视觉能力暴露成 Agent 可编排的
   分布天然集中，`sparse/moderate/dense` 只有相对意义，不是农学绝对值。
 - **无法换算株/亩**。缺少地面标定（GSD），任何"每亩多少株"的说法都需要先做标定。
 - **单类单场景**。只认甘蓝，只在这种航高与光照下验证过。
-- **工具调用正确率未做量化评测**。当前只有契约测试；真实模型的调用正确率、
-  错误恢复率需要一套任务集才能给出，见 [docs/DESIGN.md](docs/DESIGN.md) 的评测计划。
+- **真实模型的调用正确率还没有数字**。任务集与评测脚本已就位
+  （`eval/`，26 条，5 个指标），但当前只有 mock 替身的 35%——那个分数
+  不代表模型能力，只用来验证判定没有过松。等可用的 LLM key 才能出真实分数。
 
 ---
 

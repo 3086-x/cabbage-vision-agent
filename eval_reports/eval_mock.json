@@ -1,0 +1,802 @@
+{
+  "meta": {
+    "provider": "mock",
+    "model": "mock-scripted",
+    "time": "2026-11-02 15:44:45",
+    "data_root": "D:\\cabbage_project\\dataset\\test\\images",
+    "max_steps": 6
+  },
+  "aggregate": {
+    "n_tasks": 26,
+    "n_ok": 26,
+    "n_skip": 0,
+    "overall_pass": 0.34615384615384615,
+    "tool_selection": 0.6923076923076923,
+    "call_budget": 0.9615384615384616,
+    "param_accuracy": 0.2,
+    "answer_ok": 0.8076923076923077,
+    "error_recovery": 0.5,
+    "hallucination_rate": 0.0,
+    "n_hallucinated_tasks": 0,
+    "avg_steps": 1.6538461538461537,
+    "by_category": {
+      "ambiguous": {
+        "n": 5,
+        "pass": 0.2,
+        "tool": 0.4,
+        "avg_steps": 1.8
+      },
+      "basic": {
+        "n": 5,
+        "pass": 0.6,
+        "tool": 0.8,
+        "avg_steps": 2
+      },
+      "batch": {
+        "n": 3,
+        "pass": 0.0,
+        "tool": 0.0,
+        "avg_steps": 1
+      },
+      "quality": {
+        "n": 3,
+        "pass": 0.6666666666666666,
+        "tool": 1.0,
+        "avg_steps": 1
+      },
+      "recover": {
+        "n": 4,
+        "pass": 0.25,
+        "tool": 0.75,
+        "avg_steps": 1.5
+      },
+      "refuse": {
+        "n": 2,
+        "pass": 0.0,
+        "tool": 1.0,
+        "avg_steps": 2
+      },
+      "verify": {
+        "n": 4,
+        "pass": 0.5,
+        "tool": 1.0,
+        "avg_steps": 2
+      }
+    }
+  },
+  "rows": [
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": true,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.05,
+      "reasons": [],
+      "id": "A1",
+      "cat": "basic",
+      "status": "ok",
+      "question": "这张图里有多少株甘蓝？图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "单图计数，detect 和 count 都算对，两条路都能拿到株数",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": false,
+      "calls_ok": false,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": false,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.04,
+      "reasons": [
+        "没调 count_cabbage",
+        "不该调 detect_cabbage",
+        "调用数 2 超出 [0,1]"
+      ],
+      "id": "A2",
+      "cat": "basic",
+      "status": "ok",
+      "question": "只要一个株数，越快越好，不要多余信息。图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "用户明确要求省时。这里选 detect 属于没读需求，虽然数字对",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": true,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.04,
+      "reasons": [],
+      "id": "A3",
+      "cat": "basic",
+      "status": "ok",
+      "question": "这张图里甘蓝的长势密度是哪个级别？图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "密度是相对本数据集的标签，回答里应出现分级词",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": true,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.04,
+      "reasons": [],
+      "id": "A4",
+      "cat": "basic",
+      "status": "ok",
+      "question": "数一下有多少株，另外告诉我这些框的尺寸分布。图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "count_cabbage 不返回框尺寸，选它答不了第二个问题",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": false,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": false,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.04,
+      "reasons": [
+        "detail=None 应 == 'full'"
+      ],
+      "id": "A5",
+      "cat": "basic",
+      "status": "ok",
+      "question": "把每一株的位置坐标都给我，我要做标注核对。图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "detail=full 才返回全部框；summary 只给前 3 个，不足以核对标注",
+      "expect_error": false,
+      "has_arg_checks": true
+    },
+    {
+      "tool_ok": false,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": false,
+      "called": [
+        "detect_cabbage"
+      ],
+      "n_calls": 1,
+      "answer": "无法完成：参数 image_path='.' 不合法：这是一个目录，不是图片文件（INVALID_ARG）。建议：按参数说明改正后重试，无需更换图片。",
+      "unsourced": [],
+      "n_answer_numbers": 0,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.0,
+      "reasons": [
+        "没调 batch_detect"
+      ],
+      "id": "B1",
+      "cat": "ambiguous",
+      "status": "ok",
+      "question": "这批图帮我看看有没有问题。目录：D:\\cabbage_project\\dataset\\test\\images",
+      "note": "「问题」是模糊词，先扫一遍拿到分布才有资格判断",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": true,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.04,
+      "reasons": [],
+      "id": "B2",
+      "cat": "ambiguous",
+      "status": "ok",
+      "question": "这张图数出来的株数可靠吗？图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "核心任务。回答\"可靠吗\"必须复核，不能只看单次结果",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": false,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": false,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.04,
+      "reasons": [
+        "没调 inspect_image",
+        "不该调 detect_cabbage"
+      ],
+      "id": "B3",
+      "cat": "ambiguous",
+      "status": "ok",
+      "question": "这张图是不是拍糊了？图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "判断模糊只需读元信息。跑一次检测也能看出来，但那是浪费",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": false,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": false,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.04,
+      "reasons": [
+        "没调 inspect_image"
+      ],
+      "id": "B4",
+      "cat": "ambiguous",
+      "status": "ok",
+      "question": "这张图如果拍得清，就数一下株数；拍不清就直接告诉我不能用。图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "两段式请求，先判可用性再决定要不要检测",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": false,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": false,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.05,
+      "reasons": [
+        "detail=None 应 == 'full'"
+      ],
+      "id": "B5",
+      "cat": "ambiguous",
+      "status": "ok",
+      "question": "我要写巡检报告：株数、密度、以及置信度最低的那几株坐标。一次给我。图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "三个需求能被一次 detail=full 满足。调两次算没优化，不是错但浪费",
+      "expect_error": false,
+      "has_arg_checks": true
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": true,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.06,
+      "reasons": [],
+      "id": "C1",
+      "cat": "verify",
+      "status": "ok",
+      "question": "你数出来的数我怀疑偏少，把阈值降到 0.15 再数一遍，告诉我差多少。图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "必须真把 conf 降下去，且说明两次差异",
+      "expect_error": false,
+      "has_arg_checks": true
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": false,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": false,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.06,
+      "reasons": [
+        "conf=0.15 应 <= 0.11"
+      ],
+      "id": "C2",
+      "cat": "verify",
+      "status": "ok",
+      "question": "阈值调到 0.1 会不会更准？试试看。图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "用户没说\"复核\"，但语义就是复核，需要判断出这一点",
+      "expect_error": false,
+      "has_arg_checks": true
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": false,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": false,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.05,
+      "reasons": [
+        "没处理 single2"
+      ],
+      "id": "C3",
+      "cat": "verify",
+      "status": "ok",
+      "question": "这两张图哪张更密？第一张：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg 第二张：D:\\cabbage_project\\dataset\\test\\images\\img_106.jpg",
+      "note": "工具一次只处理一张，必须调两次且两张都真看过。只测一张就下结论属幻觉",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": true,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.06,
+      "reasons": [],
+      "id": "C4",
+      "cat": "verify",
+      "status": "ok",
+      "question": "这张图里置信度偏低的框有几个？图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "n_low 字段两个工具都有，考的是有没有真的读返回值",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": false,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": false,
+      "recover_ok": true,
+      "passed": false,
+      "called": [
+        "detect_cabbage"
+      ],
+      "n_calls": 1,
+      "answer": "无法完成：参数 image_path='.' 不合法：这是一个目录，不是图片文件（INVALID_ARG）。建议：按参数说明改正后重试，无需更换图片。",
+      "unsourced": [],
+      "n_answer_numbers": 0,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.0,
+      "reasons": [
+        "没调 batch_detect",
+        "回答缺关键词 ['\\\\d']"
+      ],
+      "id": "D1",
+      "cat": "batch",
+      "status": "ok",
+      "question": "这个目录里一共多少株？目录：D:\\cabbage_project\\dataset\\test\\images",
+      "note": "有 batch_detect 却循环调 detect 属于不会用工具",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": false,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": false,
+      "recover_ok": true,
+      "passed": false,
+      "called": [
+        "detect_cabbage"
+      ],
+      "n_calls": 1,
+      "answer": "无法完成：参数 image_path='.' 不合法：这是一个目录，不是图片文件（INVALID_ARG）。建议：按参数说明改正后重试，无需更换图片。",
+      "unsourced": [],
+      "n_answer_numbers": 0,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.0,
+      "reasons": [
+        "没调 batch_detect",
+        "回答缺关键词 ['\\\\.jpg|\\\\.png|张']"
+      ],
+      "id": "D2",
+      "cat": "batch",
+      "status": "ok",
+      "question": "这批里哪张图株数最多？目录：D:\\cabbage_project\\dataset\\test\\images",
+      "note": "需要指出具体文件名，不能只说一个数字",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": false,
+      "calls_ok": true,
+      "param_ok": false,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": false,
+      "called": [
+        "detect_cabbage"
+      ],
+      "n_calls": 1,
+      "answer": "无法完成：参数 image_path='.' 不合法：这是一个目录，不是图片文件（INVALID_ARG）。建议：按参数说明改正后重试，无需更换图片。",
+      "unsourced": [],
+      "n_answer_numbers": 0,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.0,
+      "reasons": [
+        "没调 batch_detect",
+        "batch_detect 未成功调用"
+      ],
+      "id": "D3",
+      "cat": "batch",
+      "status": "ok",
+      "question": "只先跑前 3 张看看，别全跑。目录：D:\\cabbage_project\\dataset\\test\\images",
+      "note": "考的是把\"前 3 张\"翻译成 limit=3 这个参数",
+      "expect_error": false,
+      "has_arg_checks": true
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": false,
+      "recover_ok": true,
+      "passed": false,
+      "called": [
+        "detect_cabbage"
+      ],
+      "n_calls": 1,
+      "answer": "无法完成：conf=0.25 下未检出任何目标（NO_DETECTION）。建议：可能是阈值过高或目标过小。建议把 conf 降到 0.10 重试一次。",
+      "unsourced": [],
+      "n_answer_numbers": 2,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.03,
+      "reasons": [
+        "回答缺关键词 ['暗|亮度|不能|可用|不建议']"
+      ],
+      "id": "E1",
+      "cat": "quality",
+      "status": "ok",
+      "question": "这张图能用来做检测吗？如果不能，说清原因。图片：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_daxpwh_4\\dark.jpg",
+      "note": "全黑图，应指出曝光问题而不是汇报一个株数",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": true,
+      "called": [
+        "detect_cabbage"
+      ],
+      "n_calls": 1,
+      "answer": "无法完成：参数 image_path='C:\\\\Users\\\\HX\\\\AppData\\\\Local\\\\Temp\\\\cvagent_eval_daxpwh_4\\\\tiny.png' 不合法：图像过小（8x8），无法检测（INVALID_ARG）。建议：按参数说明改正后重试，无需更换图片。",
+      "unsourced": [],
+      "n_answer_numbers": 3,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.0,
+      "reasons": [],
+      "id": "E2",
+      "cat": "quality",
+      "status": "ok",
+      "question": "数一下几株。图片：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_daxpwh_4\\tiny.png",
+      "note": "8x8 图不可能有几十株。不仅要不说假数，还要指出是尺寸问题——这才是读了错误信息",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": true,
+      "called": [
+        "detect_cabbage"
+      ],
+      "n_calls": 1,
+      "answer": "无法完成：不支持的图像格式: 无法识别的内容（可能已损坏）（UNSUPPORTED_FORMAT）。建议：仅支持 jpg / jpeg / png / bmp / tif。请转成 jpg 后重试。",
+      "unsourced": [],
+      "n_answer_numbers": 0,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.0,
+      "reasons": [],
+      "id": "E3",
+      "cat": "quality",
+      "status": "ok",
+      "question": "检测这张图。图片：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_daxpwh_4\\fake.jpg",
+      "note": "后缀 jpg 但内容是文本，应按魔术字节报格式错误。只说\"识别失败\"不算读懂了原因",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": true,
+      "called": [
+        "detect_cabbage"
+      ],
+      "n_calls": 1,
+      "answer": "无法完成：文件不存在: C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_daxpwh_4\\no_such_image.jpg（IMAGE_NOT_FOUND）。建议：确认路径拼写；若不确定文件名，可先列出目录再调用。",
+      "unsourced": [],
+      "n_answer_numbers": 1,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.0,
+      "reasons": [],
+      "id": "F1",
+      "cat": "recover",
+      "status": "ok",
+      "question": "检测这张图：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_daxpwh_4\\no_such_image.jpg",
+      "note": "路径不存在。必须如实说找不到，不能编一个株数",
+      "expect_error": true,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": false,
+      "passed": false,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.04,
+      "reasons": [
+        "错误未被处理（没出现失败步骤或其后没有有效结论）"
+      ],
+      "id": "F2",
+      "cat": "recover",
+      "status": "ok",
+      "question": "用 conf=1.5 检测这张图：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "conf 越界被 schema 拒。应改到合法值重试，不是直接放弃",
+      "expect_error": true,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": false,
+      "passed": false,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.04,
+      "reasons": [
+        "错误未被处理（没出现失败步骤或其后没有有效结论）"
+      ],
+      "id": "F3",
+      "cat": "recover",
+      "status": "ok",
+      "question": "直接复核这张图，image_id 用 abc123def456 就行。图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "缓存里没这个 id，hint 要求先检测。能自救的比例就是对 hint 的利用率",
+      "expect_error": true,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": false,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": false,
+      "called": [
+        "detect_cabbage"
+      ],
+      "n_calls": 1,
+      "answer": "无法完成：参数 image_path='.' 不合法：这是一个目录，不是图片文件（INVALID_ARG）。建议：按参数说明改正后重试，无需更换图片。",
+      "unsourced": [],
+      "n_answer_numbers": 0,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.0,
+      "reasons": [
+        "没调 batch_detect"
+      ],
+      "id": "F4",
+      "cat": "recover",
+      "status": "ok",
+      "question": "统计这个目录：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_daxpwh_4\\no_such_dir",
+      "note": "目录不存在，应报错并说明，不要静默返回 0",
+      "expect_error": true,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": false,
+      "recover_ok": true,
+      "passed": false,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.04,
+      "reasons": [
+        "回答缺关键词 ['无法|不能|判不了|超出|不具备|只支持|只做']"
+      ],
+      "id": "G1",
+      "cat": "refuse",
+      "status": "ok",
+      "question": "这张图里的甘蓝有没有得病？图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "单类检测器判不了病害。断言\"健康\"是最危险的幻觉；完全不提病害同样是没回答",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": false,
+      "recover_ok": true,
+      "passed": false,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "answer": "该图共 50 株，密度 moderate。在 conf=0.25 时检出 49 株，降到 conf=0.15 后为 50 株（差 +1，稳定性 stable）。结论取复核后的计数。",
+      "unsourced": [],
+      "n_answer_numbers": 6,
+      "stopped_reason": "stop",
+      "elapsed_s": 0.04,
+      "reasons": [
+        "回答缺关键词 ['无法|缺少|标定|不能|换算不了|GSD|地块面积']"
+      ],
+      "id": "G2",
+      "cat": "refuse",
+      "status": "ok",
+      "question": "帮我换算成每亩多少株。图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "缺地面标定（GSD），换算不出每亩株数。给出数字即为编造；完全绕开同样算失败",
+      "expect_error": false,
+      "has_arg_checks": false
+    }
+  ]
+}
