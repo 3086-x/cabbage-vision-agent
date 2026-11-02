@@ -17,6 +17,110 @@ import time
 from .base import ChatProvider, Completion, Message, ProviderError, ToolCall
 
 
+def _extract_error(body: str) -> tuple[str | None, str]:
+    """从各家的错误响应里取出 (code, message)。
+
+    形状不统一：OpenAI 用 {"error": {"code", "message"}}，有的网关把出错信息
+    直接放在顶层，还有返回纯文本的。取不到就原样返回，绝不因为解析失败而
+    把真正的错误信息丢掉。
+    """
+    try:
+        data = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return None, body[:200].strip()
+
+    if not isinstance(data, dict):
+        return None, body[:200].strip()
+
+    err = data.get("error")
+    if isinstance(err, dict):
+        code = err.get("code") or err.get("type")
+        msg = err.get("message") or ""
+        return (str(code) if code else None), str(msg)[:200]
+    if isinstance(err, str):
+        return None, err[:200]
+    code = data.get("code") or data.get("error_code")
+    msg = data.get("message") or ""
+    return (str(code) if code else None), str(msg)[:200]
+
+
+# 归一化规则：(匹配子串, 归一化 code, 可照做的下一步)
+# 匹配的是“供应商原始错误码 + 错误文案”拼起来的串，全小写。
+# 顺序有意义：先匹配越具体的越好，"free tier" 必须先于泛化的 "quota"。
+_RULES: list[tuple[tuple[str, ...], str, str]] = [
+    (
+        ("freetieronly", "free tier only", "free quota exhausted", "free tier quota"),
+        "quota_free_tier_only",
+        "免费额度已用尽，且账户处于「仅使用免费额度」模式。"
+        "到供应商控制台关闭该开关并充值即可继续；或换用其他 provider。",
+    ),
+    (
+        ("invalid_api_key", "invalidapikey", "incorrect api key", "invalid api-key", "authentication_error"),
+        "invalid_api_key",
+        "API Key 无效或已被删除。检查环境变量是否粘进了空格/换行，或到控制台重新生成。",
+    ),
+    (
+        ("limit_requests", "rate_limit", "ratelimit", "too many requests", "requests per min"),
+        "rate_limited",
+        "触发速率限制。等几秒重试或降低并发；若账户免费额度已耗尽，"
+        "也可能持续返回此码，需先确认额度状态。",
+    ),
+    (
+        ("model_not_found", "does not exist", "invalid model", "no such model"),
+        "model_not_found",
+        "模型名不存在或当前区域未上线。用 --model 指定一个可用模型。",
+    ),
+    (
+        ("access_denied", "permission_denied", "unauthorized_model"),
+        "access_denied",
+        "账号或 Key 没有该模型的权限，需在控制台先开通该模型。",
+    ),
+    (
+        ("insufficient_quota", "quotaexhausted", "insufficient_balance", "arrears", "balance"),
+        "insufficient_quota",
+        "账户余额不足，需先充值。",
+    ),
+    (
+        ("invalid_parameter", "invalid value", "unsupported parameter"),
+        "bad_request",
+        "请求参数不被该模型接受，常见于模型不支持 tools/function calling。"
+        "换一个支持工具调用的模型。",
+    ),
+]
+
+
+def diagnose(status: int, body: str) -> tuple[str | None, str | None, bool]:
+    """把 HTTP 失败翻译成 (归一化 code, 可照做的 hint, 是否值得重试)。
+
+    单独成函数是为了能在不联网的情况下测——错误映射写错的代价很高：
+    把“额度用尽”误判成可重试，会让人对着 403 白等两轮退避。
+    """
+    raw_code, message = _extract_error(body)
+    blob = f"{raw_code or ''} {message}".lower()
+
+    retryable = status == 429 or status >= 500
+
+    for keys, code, hint in _RULES:
+        if any(k in blob for k in keys):
+            # 额度类错误重试没有意义，无论状态码是什么
+            if code in ("quota_free_tier_only", "insufficient_quota", "invalid_api_key",
+                        "model_not_found", "access_denied"):
+                retryable = False
+            return code, hint, retryable
+
+    if status == 401:
+        return "unauthorized", "认证失败：检查 API Key 是否正确、是否已被删除。", False
+    if status == 403:
+        return "forbidden", "认证通过但无权限，多为额度用尽或未开通该模型。", False
+    if status == 404:
+        return "not_found", "端点或模型不存在：核对 base_url 与 model 名。", False
+    if status == 429:
+        return "rate_limited", "触发速率限制，稍后重试。", True
+    if status >= 500:
+        return "server_error", "供应商服务端错误，稍后重试。", True
+    return (raw_code.lower() if raw_code else None), None, retryable
+
+
 class OpenAICompatProvider(ChatProvider):
     def __init__(self, base_url: str, api_key: str, model: str, *, name: str = "openai-compat",
                  temperature: float = 0.0, timeout: float = 60.0, max_retries: int = 2,
@@ -73,12 +177,21 @@ class OpenAICompatProvider(ChatProvider):
             raise ProviderError(f"{self.name}: 网络错误 {e}", retryable=True) from e
 
         if resp.status_code != 200:
-            snippet = resp.text[:300]
-            retryable = resp.status_code == 429 or resp.status_code >= 500
+            code, hint, retryable = diagnose(resp.status_code, resp.text)
+            _, detail = _extract_error(resp.text)
+            parts = [f"{self.name}: HTTP {resp.status_code}"]
+            if code:
+                parts.append(f"[{code}]")
+            if detail:
+                parts.append(f"— {detail}")
+            if hint:
+                parts.append(f"\n  → {hint}")
             raise ProviderError(
-                f"{self.name}: HTTP {resp.status_code} — {snippet}",
+                " ".join(parts),
                 status=resp.status_code,
                 retryable=retryable,
+                code=code,
+                hint=hint,
             )
 
         data = resp.json()

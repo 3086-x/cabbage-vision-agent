@@ -64,10 +64,26 @@ class Completion:
 
 
 class ProviderError(RuntimeError):
-    def __init__(self, message: str, *, status: int | None = None, retryable: bool = False) -> None:
+    """供应商侧失败。
+
+    code / hint 存在的理由：HTTP 状态码本身不含行动信息——401 和 403 都可能是
+    "key 错了"，也可能是"额度没了"，而这两件事的处理方式完全不同。把供应商
+    自己的错误码归一化成一个稳定的 code，再附一句能直接照做的 hint，
+    调用方（doctor、评测脚本）就不需要各自维护一张错误码对照表。
+    """
+
+    def __init__(self, message: str, *, status: int | None = None, retryable: bool = False,
+                 code: str | None = None, hint: str | None = None) -> None:
         super().__init__(message)
         self.status = status
         self.retryable = retryable
+        self.code = code
+        self.hint = hint
+
+    @property
+    def action(self) -> str:
+        """人可直接照做的下一步。"""
+        return self.hint or ""
 
 
 class ChatProvider(Protocol):
