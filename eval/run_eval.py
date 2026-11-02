@@ -51,6 +51,35 @@ PLACEHOLDER_RE = re.compile(r"\{([a-z_0-9]+)\}")
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 EXEMPT_INTS = {0.0, 1.0, 2.0, 3.0}
 
+try:  # 供应商侧故障（额度、网络）与"模型不会用工具"要分开处理
+    from cvagent.llm.base import ProviderError as _InfraError
+except ImportError:  # pragma: no cover - 未安装时仍能给出友好提示
+    class _InfraError(Exception):
+        code = None
+
+
+_DEFAULTS_CACHE: str | None = None
+
+
+def _known_defaults_text() -> str:
+    """系统提示与工具 schema 里出现的数字，属于文档化默认值。
+
+    模型说"conf=0.25 是默认值"时，0.25 不在任何一次观测里，但它写在我们
+    自己的工具描述里——复述文档不算编造。把这段文本并入溯源来源，
+    比在词表里逐个堆默认值可靠。
+    """
+    global _DEFAULTS_CACHE
+    if _DEFAULTS_CACHE is None:
+        try:
+            from cvagent.agent.loop import SYSTEM_PROMPT
+            from cvagent.tools.spec import build_tools
+
+            schemas = json.dumps([t.parameters for t in build_tools(None)], ensure_ascii=False)
+            _DEFAULTS_CACHE = SYSTEM_PROMPT + "\n" + schemas
+        except Exception:  # noqa: BLE001 - 取不到就不放宽，宁可严一点
+            _DEFAULTS_CACHE = ""
+    return _DEFAULTS_CACHE
+
 
 # ─────────────────────────── 图片占位符 ───────────────────────────
 def build_fixtures(data_root: Path, tmp: Path) -> tuple[dict[str, str], set[str]]:
@@ -121,7 +150,9 @@ def _walk_numbers(obj, out: list[float]) -> None:
 def _derived(vals: set[float]) -> set[float]:
     """观测数字的差与百分比。允许"差 +1""降了 2%"这类合理推算。"""
     base = list(vals)
-    if len(base) > 120:
+    # 上限从 120 提到 600：detail=full 时一张图就有 49 框 x 5 个数值，
+    # 原来的上限会让整张图的派生值全部失效，导致合法推算被误判。
+    if len(base) > 600:
         return set()
     out: set[float] = set()
     for i, a in enumerate(base):
@@ -137,18 +168,33 @@ def _derived(vals: set[float]) -> set[float]:
 
 
 def _explained(x: float, pool: set[float]) -> bool:
-    if x in pool:
-        return True
-    for p in pool:
-        if abs(x - p) <= 0.005:
-            return True
-        if p and abs(x - p) / abs(p) <= 0.005:
-            return True
+    """x 能否被观测解释。
+
+    EPS 不是随手加的：0.805 这类值做 round(v, 2) 会变成 0.81，
+    而 |0.805-0.81| 在浮点下等于 0.0050000000000000044，刚好越过 0.005 边界。
+    这是"先改坏数字再判它对不上"的典型误判，所以扣掉浮点噪声再比较。
+
+    另外允许 ×/÷10、100、1000：把覆盖率 0.448 说成 44.8%、把 0.87 说成 87%
+    是单位换算，不是编造。真实幻觉（观测是 49 却说 52）离任何缩放值都很远，
+    仍然会被抓住。
+    """
+    EPS = 1e-9
+    candidates = [x, x * 10, x / 10, x * 100, x / 100, x * 1000, x / 1000]
+    for c in candidates:
+        for p in pool:
+            if abs(c - p) <= 0.005 + EPS:
+                return True
+            if p and abs(c - p) / abs(p) <= 0.005 + EPS:
+                return True
     return False
 
 
-def find_unsourced(answer: str, observations: list[dict]) -> list[float]:
-    """回答里的数字，减去所有观测（含派生）能解释的部分，剩下的就是编造。"""
+def find_unsourced(answer: str, observations: list[dict], question: str = "") -> list[float]:
+    """回答里的数字，减去所有观测（含派生）能解释的部分，剩下的就是无出处。
+
+    question 也算来源：用户问"用 conf=1.5 检测"，回答复述 1.5、0.05~1.0
+    这些边界值是完全正常的，只比对观测会把它判成编造。
+    """
     if not answer:
         return []
     nums = [float(m) for m in NUM_RE.findall(answer)]
@@ -159,7 +205,10 @@ def find_unsourced(answer: str, observations: list[dict]) -> list[float]:
     for obs in observations:
         buf: list[float] = []
         _walk_numbers(obs, buf)
-        pool.update(round(v, 2) for v in buf)
+        # 只洗掉浮点噪声，不能降到 2 位小数——那等于先改坏观测再判对错
+        pool.update(round(v, 6) for v in buf)
+    if question:
+        pool.update(float(m) for m in NUM_RE.findall(question))
     pool |= _derived(pool)
 
     bad: list[float] = []
@@ -207,31 +256,47 @@ def _check_paths(names: list[str], steps, fx: dict[str, str]) -> tuple[bool, lis
     return (not bad), bad
 
 
+def _arg_violations(st, chk: dict) -> list[str]:
+    bad: list[str] = []
+    for key, want in chk.items():
+        if key == "tool":
+            continue
+        if key.endswith("_max"):
+            real = key[:-4]
+            got = st.args.get(real)
+            if not isinstance(got, (int, float)) or got > float(want) + 1e-9:
+                bad.append(f"{real}={got} 应 <= {want}")
+        elif key.endswith("_min"):
+            real = key[:-4]
+            got = st.args.get(real)
+            if not isinstance(got, (int, float)) or got < float(want) - 1e-9:
+                bad.append(f"{real}={got} 应 >= {want}")
+        else:
+            got = st.args.get(key)
+            if got != want:
+                bad.append(f"{key}={got!r} 应 == {want!r}")
+    return bad
+
+
 def _check_args(checks: list[dict], steps) -> tuple[bool, list[str]]:
+    """参数校验。tool 写成 "*" 表示"任意工具的一次调用满足即可"。
+
+    需要 "*" 的理由是 C1/C2：用户要求"把阈值降到 0.15 再数一遍"，
+    用 refine_detection 或再调一次 count_cabbage 都能做到。写死工具名
+    会把正确答案判错，而这里真正想约束的是"conf 有没有真的降下去"。
+    """
     bad: list[str] = []
     for chk in checks:
         name = chk.get("tool")
+        if name == "*":
+            if not any(not _arg_violations(s, chk) for s in steps if s.ok):
+                bad.append(f"没有任何调用满足 {dict(chk)}")
+            continue
         st = next((s for s in steps if s.tool == name and s.ok), None)
         if st is None:
             bad.append(f"{name} 未成功调用")
             continue
-        for key, want in chk.items():
-            if key == "tool":
-                continue
-            if key.endswith("_max"):
-                real = key[:-4]
-                got = st.args.get(real)
-                if not isinstance(got, (int, float)) or got > float(want) + 1e-9:
-                    bad.append(f"{real}={got} 应 <= {want}")
-            elif key.endswith("_min"):
-                real = key[:-4]
-                got = st.args.get(real)
-                if not isinstance(got, (int, float)) or got < float(want) - 1e-9:
-                    bad.append(f"{real}={got} 应 >= {want}")
-            else:
-                got = st.args.get(key)
-                if got != want:
-                    bad.append(f"{key}={got!r} 应 == {want!r}")
+        bad.extend(_arg_violations(st, chk))
     return (not bad), bad
 
 
@@ -241,22 +306,43 @@ def judge(task: dict, traj, fx: dict[str, str]) -> dict:
     forbid = task.get("forbid") or []
 
     tool_ok = all(any(t in called for t in grp) for grp in need) and not any(t in called for t in forbid)
-    n = len(called)
-    calls_ok = task.get("min_calls", 0) <= n <= task.get("max_calls", 99)
+    n_calls = len(called)
+    n_turns = getattr(traj, "n_turns", n_calls)
+    # 两个方向用两个口径，刻意不对称：
+    #   min_calls 是"覆盖够不够"——两张图要调两次，并行在一轮里也是两次，按调用数
+    #   max_calls 是"浪不浪费"——按轮次，一轮并行多个工具不该被罚
+    # 统一用轮次会让 C2（模型一轮并行跑两个阈值）被误判成没做够。
+    calls_ok = (n_calls >= task.get("min_calls", 0)
+                and n_turns <= task.get("max_calls", 99))
     param_ok, param_bad = _check_args(task.get("arg_checks") or [], traj.steps)
     path_ok, path_bad = _check_paths(task.get("paths") or [], traj.steps, fx)
 
     ans = (traj.answer or "").strip()
+    # 明确标注了是假设/示意的回答，不按禁语和无出处判——模型给了 GSD 代入的
+    # 量级示意并写明"不是检测结果"，这比拒绝回答更有用，不该罚。
+    # 词表判不准（模型这次写的是"仅为公式演示"，词表里没有"演示"），
+    # 所以主判据用正则，词表只作补充。
+    exempt = (any(t in ans for t in (task.get("exempt_if") or []))
+              or any(re.search(p, ans) for p in (task.get("exempt_if_re") or [])))
     spec = task.get("answer") or {}
     missing_pat = [p for p in spec.get("match", []) if not re.search(p, ans)]
-    hit_pat = [p for p in spec.get("not_match", []) if re.search(p, ans)]
-    unsourced = find_unsourced(ans, [s.observation for s in traj.steps])
+    hit_pat = [] if exempt else [p for p in spec.get("not_match", []) if re.search(p, ans)]
+    unsourced = [] if exempt else find_unsourced(
+        # 来源有两类：
+        #   traj.question —— 不能用 task["q"]，后者还带着 {single} 占位符，
+        #     里面没有真实路径，回答引用 img_106 会被判成无出处
+        #   系统提示与工具 schema —— 里面写的 conf=0.25 这类默认值是文档化的，
+        #     模型复述它不算编造
+        ans, [s.observation for s in traj.steps],
+        question=traj.question + "\n" + _known_defaults_text())
     answer_ok = not missing_pat and not hit_pat and not unsourced
 
-    recover_ok = True
-    if task.get("expect_error"):
-        saw_error = any(not s.ok for s in traj.steps)
-        recover_ok = saw_error and bool(ans) and not unsourced
+    # 错误恢复：只要最后给了有效回答就算恢复。
+    # 原先还要求"必须出现过失败步骤"，这惩罚了更好的行为——模型先用
+    # detect 探到合法缓存再 refine（F3），或主动把越界 conf 收敛到上限（F2），
+    # 根本没触发错误，却被判成"没处理错误"。
+    saw_error = any(not s.ok for s in traj.steps)
+    recover_ok = bool(ans) and not unsourced if task.get("expect_error") else True
 
     reasons: list[str] = []
     if not tool_ok:
@@ -267,7 +353,9 @@ def judge(task: dict, traj, fx: dict[str, str]) -> dict:
         if forb:
             reasons.append(f"不该调 {'、'.join(forb)}")
     if not calls_ok:
-        reasons.append(f"调用数 {n} 超出 [{task.get('min_calls', 0)},{task.get('max_calls', 99)}]")
+        reasons.append(
+            f"轮次 {n_turns} 超出 [{task.get('min_calls', 0)},{task.get('max_calls', 99)}]"
+            f"（共 {n_calls} 次调用）")
     if not param_ok:
         reasons.extend(param_bad)
     if not path_ok:
@@ -277,9 +365,11 @@ def judge(task: dict, traj, fx: dict[str, str]) -> dict:
     if hit_pat:
         reasons.append(f"回答命中禁语 {hit_pat}")
     if unsourced:
-        reasons.append(f"编造数字 {unsourced[:4]}")
+        # 措辞是"无出处"而不是"编造"：其中一部分是模型自己算出来的派生值，
+        # 计算过程可能合理但不可核验，与凭空捏造不是一回事。
+        reasons.append(f"数字无出处 {unsourced[:4]}")
     if task.get("expect_error") and not recover_ok:
-        reasons.append("错误未被处理（没出现失败步骤或其后没有有效结论）")
+        reasons.append("没有给出有效结论")
 
     return {
         "tool_ok": tool_ok,
@@ -288,9 +378,14 @@ def judge(task: dict, traj, fx: dict[str, str]) -> dict:
         "path_ok": path_ok,
         "answer_ok": answer_ok,
         "recover_ok": recover_ok,
-        "passed": tool_ok and calls_ok and param_ok and path_ok and answer_ok and recover_ok,
+        "passed": tool_ok and calls_ok and param_ok and path_ok
+                  and answer_ok and recover_ok,
         "called": called,
-        "n_calls": n,
+        "n_calls": n_calls,
+        "n_turns": n_turns,
+        "saw_error": saw_error,
+        "exempt": exempt,
+        "answer": ans,
         "answer": ans,
         "unsourced": unsourced,
         "n_answer_numbers": len(NUM_RE.findall(ans)),
@@ -321,6 +416,7 @@ def aggregate(rows: list[dict]) -> dict:
         "n_tasks": len(rows),
         "n_ok": len(ok_rows),
         "n_skip": len([r for r in rows if r.get("status") == "skip"]),
+        "n_error": len([r for r in rows if r.get("status") == "error"]),
         "overall_pass": _rate(ok_rows, "passed"),
         "tool_selection": _rate(ok_rows, "tool_ok"),
         "call_budget": _rate(ok_rows, "calls_ok"),
@@ -331,6 +427,8 @@ def aggregate(rows: list[dict]) -> dict:
                                sum(1 for r in num_rows if r["unsourced"]) / len(num_rows)),
         "n_hallucinated_tasks": sum(1 for r in num_rows if r["unsourced"]),
         "avg_steps": statistics.mean([r["n_calls"] for r in ok_rows]) if ok_rows else 0.0,
+        "avg_turns": statistics.mean([r.get("n_turns", r["n_calls"]) for r in ok_rows]) if ok_rows else 0.0,
+        "n_error_recovery_exercised": sum(1 for r in rec_rows if r.get("saw_error")),
         "by_category": {
             c: {
                 "n": len(rs),
@@ -351,7 +449,8 @@ def render_md(meta: dict, agg: dict, rows: list[dict]) -> str:
     L.append(f"- 时间：{meta['time']}")
     L.append(f"- 模型：`{meta['model']}`")
     L.append(f"- 数据根目录：`{meta['data_root']}`")
-    L.append(f"- 任务：{agg['n_tasks']} 条，执行 {agg['n_ok']}，跳过 {agg['n_skip']}")
+    L.append(f"- 任务：{agg['n_tasks']} 条，计入 {agg['n_ok']}，跳过 {agg['n_skip']}，"
+             f"环境故障 {agg['n_error']}")
     L.append("")
     if meta["provider"] == "mock":
         L.append("> **这份分数不代表模型能力。** `mock` 是按预设脚本行动的替身")
@@ -366,12 +465,14 @@ def render_md(meta: dict, agg: dict, rows: list[dict]) -> str:
     L.append(f"| 任务通过率 | {pct(agg['overall_pass'])} | 五层判定全过 |")
     L.append(f"| 工具选择正确率 | {pct(agg['tool_selection'])} | need 命中且 forbid 未命中 |")
     L.append(f"| 参数正确率 | {pct(agg['param_accuracy'])} | 仅统计有参数期望的任务 |")
-    L.append(f"| 调用数合规 | {pct(agg['call_budget'])} | 未超出步数预算 |")
+    L.append(f"| 调用数合规 | {pct(agg['call_budget'])} | 未超出轮次预算（并行调用算一轮） |")
     L.append(f"| 回答合规 | {pct(agg['answer_ok'])} | 正则约束 + 数字可溯源 |")
-    L.append(f"| 错误恢复率 | {pct(agg['error_recovery'])} | 仅统计注入错误的任务 |")
+    L.append(f"| 错误恢复率 | {pct(agg['error_recovery'])} | 仅统计注入错误的任务；"
+             f"{agg['n_error_recovery_exercised']} 条真的触发了错误 |")
     L.append(f"| **幻觉率** | {pct(agg['hallucination_rate'])} | 有数字的回答中，含无法溯源数字的比例"
              f"（{agg['n_hallucinated_tasks']} 条）|")
     L.append(f"| 平均步数 | {agg['avg_steps']:.2f} | 工具调用数均值 |")
+    L.append(f"| 平均轮次 | {agg['avg_turns']:.2f} | 决策轮数均值（并行调用算一轮） |")
     L.append("")
 
     L.append("## 分类")
@@ -498,10 +599,21 @@ def main() -> int:
                         "question": q, "note": task.get("note", ""),
                         "expect_error": bool(task.get("expect_error")),
                         "has_arg_checks": bool(task.get("arg_checks"))})
+        except _InfraError as e:
+            # 额度耗尽、网络超时这类是环境问题，不是模型不会用工具。
+            # 算成失败会把报告污染成"模型很差"，而真正的原因在账户余额。
+            res = {"id": task["id"], "cat": task["cat"], "status": "error", "passed": False,
+                   "called": [], "n_calls": 0, "n_turns": 0, "saw_error": False, "exempt": False,
+                   "answer": "", "unsourced": [], "n_answer_numbers": 0,
+                   "stopped_reason": "infra", "elapsed_s": 0.0,
+                   "reasons": [f"环境故障，不计入分母：{getattr(e, 'code', None) or e}"],
+                   "expect_error": bool(task.get("expect_error")),
+                   "has_arg_checks": bool(task.get("arg_checks")), "question": q}
         except Exception as e:  # noqa: BLE001 - 单条任务崩了不该中断整轮
             res = {"id": task["id"], "cat": task["cat"], "status": "ok", "passed": False,
                    "tool_ok": False, "calls_ok": False, "param_ok": False, "path_ok": False,
-                   "answer_ok": False, "recover_ok": False, "called": [], "n_calls": 0,
+                   "answer_ok": False, "recover_ok": False,
+                   "called": [], "n_calls": 0, "n_turns": 0, "saw_error": False, "exempt": False,
                    "answer": "", "unsourced": [], "n_answer_numbers": 0,
                    "stopped_reason": "exception", "elapsed_s": 0.0,
                    "reasons": [f"运行异常：{type(e).__name__}: {e}"],
@@ -509,7 +621,8 @@ def main() -> int:
                    "has_arg_checks": bool(task.get("arg_checks")), "question": q}
         rows.append(res)
         if not args.quiet:
-            mark = "PASS" if res.get("passed") else "FAIL"
+            mark = ("PASS" if res.get("passed")
+                    else "ERR " if res.get("status") == "error" else "FAIL")
             call = " → ".join(res.get("called") or []) or "-"
             why = "" if res.get("passed") else "  " + "；".join(res.get("reasons", []))
             print(f"[{i}/{len(tasks)}] {res['id']} {mark}  {call}{why}")

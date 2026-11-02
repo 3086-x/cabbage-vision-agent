@@ -52,7 +52,7 @@ tasks:
     cat: basic
     q: "把每一株的位置坐标都给我，我要做标注核对。图片：{single}"
     need: [[detect_cabbage]]
-    max_calls: 2
+    max_calls: 3
     arg_checks: [{tool: detect_cabbage, detail: full}]
     note: detail=full 才返回全部框；summary 只给前 3 个，不足以核对标注
 
@@ -90,7 +90,7 @@ tasks:
     cat: ambiguous
     q: "我要写巡检报告：株数、密度、以及置信度最低的那几株坐标。一次给我。图片：{single}"
     need: [[detect_cabbage]]
-    max_calls: 2
+    max_calls: 3
     arg_checks: [{tool: detect_cabbage, detail: full}]
     note: 三个需求能被一次 detail=full 满足。调两次算没优化，不是错但浪费
 
@@ -98,18 +98,20 @@ tasks:
   - id: C1
     cat: verify
     q: "你数出来的数我怀疑偏少，把阈值降到 0.15 再数一遍，告诉我差多少。图片：{single}"
-    need: [[detect_cabbage, count_cabbage], [refine_detection]]
+    need: [[detect_cabbage, count_cabbage]]
+    min_calls: 2
     max_calls: 3
-    arg_checks: [{tool: refine_detection, conf_max: 0.16}]
+    arg_checks: [{tool: "*", conf_max: 0.16}]
     answer: {match: ["差|对比|→|变化|减少|增加"]}
     note: 必须真把 conf 降下去，且说明两次差异
 
   - id: C2
     cat: verify
     q: "阈值调到 0.1 会不会更准？试试看。图片：{single}"
-    need: [[detect_cabbage, count_cabbage], [refine_detection]]
+    need: [[detect_cabbage, count_cabbage]]
+    min_calls: 2
     max_calls: 3
-    arg_checks: [{tool: refine_detection, conf_max: 0.11}]
+    arg_checks: [{tool: "*", conf_max: 0.11}]
     note: 用户没说"复核"，但语义就是复核，需要判断出这一点
 
   - id: C3
@@ -134,15 +136,15 @@ tasks:
     cat: batch
     q: "这个目录里一共多少株？目录：{dir}"
     need: [[batch_detect]]
-    max_calls: 1
+    max_calls: 3
     answer: {match: ["\\d"]}
-    note: 有 batch_detect 却循环调 detect 属于不会用工具
+    note: 目录 75 张、单次上限 50，覆盖全部要按 next_offset 翻页；用 detect 逐张才是不会用工具
 
   - id: D2
     cat: batch
     q: "这批里哪张图株数最多？目录：{dir}"
     need: [[batch_detect]]
-    max_calls: 1
+    max_calls: 3
     answer: {match: ["\\.jpg|\\.png|张"]}
     note: 需要指出具体文件名，不能只说一个数字
 
@@ -239,4 +241,11 @@ tasks:
     answer:
       not_match: ["每亩\\s*\\d|\\d+\\s*株/亩|折合\\s*\\d+"]
       match: ["无法|缺少|标定|不能|换算不了|GSD|地块面积"]
+    # 明确标注为假设/示意的数值不罚：给出"若 GSD=1cm 则约 312 株/亩"并写明
+    # 不是检测结果，比干脆不回答更有用。禁语要抓的是把估算当结论讲。
+    exempt_if: ["假设", "示意", "代入", "演示", "示例"]
+    exempt_if_re:
+      - "仅.{0,10}(演示|示例|示意|假设)"
+      - "不是.{0,8}(结果|本图|实测)"
+      - "并非.{0,8}(结果|实测)"
     note: 缺地面标定（GSD），换算不出每亩株数。给出数字即为编造；完全绕开同样算失败
