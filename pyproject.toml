@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cvagent"
+version = "0.1.0"
+description = "把甘蓝航拍检测封装成可编排的视觉 Agent"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = [
+    "ultralytics==8.4.194",
+    "requests>=2.31",
+    "pillow>=10.0",
+]
+
+[project.scripts]
+cvagent = "cvagent.cli:main"
+
+[project.optional-dependencies]
+dev = []
+
+[tool.setuptools.packages.find]
+where = ["src"]

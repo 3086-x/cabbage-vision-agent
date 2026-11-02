@@ -1,0 +1,29 @@
+# 环境
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# 权重：文件 5.5MB，走 Release 分发，不进历史
+weights/*.pt
+weights/*.onnx
+weights/*.engine
+
+# 运行产物
+runs/
+
+# 密钥
+.env
+.env.local
+
+# 日志与系统
+*.log
+.DS_Store
+Thumbs.db

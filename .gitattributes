@@ -1,0 +1,8 @@
+# 统一换行，避免 Windows 协作时 diff 全是行尾噪音
+* text=auto eol=lf
+
+# 二进制，不做任何转换
+*.pt binary
+*.onnx binary
+*.png binary
+*.jpg binary

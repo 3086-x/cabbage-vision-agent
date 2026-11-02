@@ -1,0 +1,11 @@
+# 推理后端。版本与训练仓库一致——YOLO 的 NMS 默认值和 letterbox 细节
+# 在跨版本时变过，换版本会让计数结果漂移。
+ultralytics==8.4.194
+torch>=2.0
+torchvision>=0.15
+
+# LLM 客户端（只用 requests，不引 langchain）
+requests>=2.31
+
+# 图像校验
+pillow>=10.0
