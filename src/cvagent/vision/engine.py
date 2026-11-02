@@ -125,9 +125,26 @@ class YoloEngine:
 
         if use_cache:
             hit = self._cache.get(iid)
-            # 缓存里存的是该图已跑过的**最低**阈值结果；阈值更低才有新信息
+            # 缓存里存的是该图已跑过的**最低**阈值结果，所以阈值更高时，
+            # 只需按本次阈值过滤掉低置信框即可，不必重新推理。
             if hit is not None and hit.conf_threshold <= conf and hit.iou_threshold == iou:
-                return hit
+                if hit.conf_threshold == conf:
+                    return hit
+                kept = [b for b in hit.boxes if b.conf + 1e-9 >= conf]
+                if not kept:
+                    # 阈值调高后一个框都不剩，语义等同"该阈值下没检测到"
+                    raise NoDetection(conf, hit.conf_threshold < conf)
+                return DetectionResult(
+                    image_id=hit.image_id,
+                    path=hit.path,
+                    width=hit.width,
+                    height=hit.height,
+                    conf_threshold=conf,
+                    iou_threshold=iou,
+                    boxes=kept,
+                    elapsed_ms=0.0,  # 未推理，命中缓存
+                    device=hit.device,
+                )
 
         self._ensure_model()
         t0 = time.perf_counter()
@@ -173,6 +190,16 @@ class YoloEngine:
 
     def get_cached(self, image_id: str) -> DetectionResult | None:
         return self._cache.get(image_id)
+
+    def clear_cache(self) -> None:
+        """清空检测缓存。
+
+        评测必须每条任务都清一次：上一条任务把缓存留在 conf=0.15，
+        下一条任务问"默认阈值下多少株"就会拿到 0.15 的结果——
+        这是评测之间的状态泄漏，不是模型的问题。
+        """
+        self._cache.clear()
+        self._cache_order.clear()
 
     def warmup(self) -> float:
         """预加载权重与 CUDA 上下文，返回耗时毫秒。

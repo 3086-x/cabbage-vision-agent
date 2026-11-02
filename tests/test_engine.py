@@ -113,5 +113,92 @@ class TestConfGuard(unittest.TestCase):
                     eng.detect(p, conf=bad)
 
 
+class _Vals:
+    def __init__(self, v):
+        self.v = v
+
+    def tolist(self):
+        return self.v
+
+
+class _Boxes:
+    def __init__(self, xyxy, conf):
+        self.xyxy = _Vals(xyxy)
+        self.conf = _Vals(conf)
+
+    def __len__(self):
+        return len(self.xyxy.v)
+
+
+class _Res:
+    def __init__(self, xyxy, conf):
+        self.boxes = _Boxes(xyxy, conf)
+
+
+class _FakeModel:
+    """两个框，置信度 0.30 与 0.20，用它们区分阈值行为。"""
+
+    def __init__(self):
+        self.calls = 0
+
+    def predict(self, *a, **k):
+        self.calls += 1
+        return [_Res([[0, 0, 10, 10], [20, 20, 30, 30]], [0.30, 0.20])]
+
+
+class TestCacheThresholdSemantics(unittest.TestCase):
+    """缓存存的是最低阈值结果，但对外必须还原成调用方要的那个阈值。
+
+    这条是评测里抓出来的真 bug：跑过一次 conf=0.15 之后，再问
+    conf=0.25 会直接返回缓存的 0.15 结果，阈值参数被静默忽略，
+    株数从 49 变成 50。工具"看起来正常工作"，数字却是错的。
+    """
+
+    def setUp(self):
+        from PIL import Image
+
+        self._tmp = tempfile.TemporaryDirectory()
+        self.img = Path(self._tmp.name) / "a.png"
+        Image.new("RGB", (640, 640), (120, 120, 120)).save(self.img)
+
+        self.eng = YoloEngine(weights=Path("does_not_exist.pt"), device="cpu")
+        self.eng._ensure_model = lambda: None  # 不加载真权重
+        self.fake = _FakeModel()
+        self.eng._model = self.fake
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_higher_conf_filters_cached_boxes(self):
+        low = self.eng.detect(self.img, conf=0.15)
+        self.assertEqual(len(low.boxes), 2)
+        self.assertEqual(low.conf_threshold, 0.15)
+
+        high = self.eng.detect(self.img, conf=0.25)
+        self.assertEqual(len(high.boxes), 1, "0.25 应滤掉 0.20 那个框")
+        self.assertEqual(high.conf_threshold, 0.25, "对外报告的阈值必须是调用方要的")
+        self.assertEqual(self.fake.calls, 1, "阈值变高应命中缓存，不该重新推理")
+
+    def test_lower_conf_triggers_new_inference(self):
+        self.eng.detect(self.img, conf=0.25)
+        self.assertEqual(self.fake.calls, 1)
+        self.eng.detect(self.img, conf=0.15)
+        self.assertEqual(self.fake.calls, 2, "阈值更低才有新信息，必须重新推理")
+
+    def test_too_high_conf_raises_no_detection(self):
+        from cvagent.errors import NoDetection
+
+        self.eng.detect(self.img, conf=0.15)
+        with self.assertRaises(NoDetection):
+            self.eng.detect(self.img, conf=0.9)
+
+    def test_clear_cache_forces_inference(self):
+        self.eng.detect(self.img, conf=0.15)
+        self.eng.clear_cache()
+        self.assertIsNone(self.eng.get_cached(image_id_of(self.img)))
+        self.eng.detect(self.img, conf=0.15)
+        self.assertEqual(self.fake.calls, 2)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
