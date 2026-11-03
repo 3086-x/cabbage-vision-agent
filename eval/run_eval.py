@@ -430,6 +430,14 @@ def aggregate(rows: list[dict]) -> dict:
         "avg_steps": statistics.mean([r["n_calls"] for r in ok_rows]) if ok_rows else 0.0,
         "avg_turns": statistics.mean([r.get("n_turns", r["n_calls"]) for r in ok_rows]) if ok_rows else 0.0,
         "n_error_recovery_exercised": sum(1 for r in rec_rows if r.get("saw_error")),
+        # 分层路由的分布。只有 auto 模式有区分度（pipeline 恒为 rule、agent 恒为 agent），
+        # 但照算不误，渲染时按 provider 决定要不要展示。
+        "n_rule": sum(1 for r in ok_rows if r.get("route") == "rule"),
+        "n_agent": sum(1 for r in ok_rows if r.get("route") == "agent"),
+        "escalation_rate": (None if not ok_rows else
+                            sum(1 for r in ok_rows if r.get("route") == "agent") / len(ok_rows)),
+        "pass_rule": _rate([r for r in ok_rows if r.get("route") == "rule"], "passed"),
+        "pass_agent": _rate([r for r in ok_rows if r.get("route") == "agent"], "passed"),
         "by_category": {
             c: {
                 "n": len(rs),
@@ -463,6 +471,30 @@ def render_md(meta: dict, agg: dict, rows: list[dict]) -> str:
         L.append("> 正则路由意图 → 固定动作序列 → 模板拼接答案，全过程 0 次模型调用。")
         L.append("> 规则是看着 `tasks.yaml` 的措辞写的，所以在这批任务上的分数是**上界**；")
         L.append("> 衡量泛化要看 `tasks_holdout.yaml`（换措辞、同一批意图，写规则时没参考过）。")
+        L.append("")
+    if meta["provider"] == "auto":
+        L.append("> **这是线上那条路径。** `auto` = 规则优先，判断不了才升级到 Agent。")
+        L.append("> 与单独跑 `pipeline` / 单独跑模型的区别在于：判据、工具、交接文本完全一致，")
+        L.append("> 所以分数可以和那两份直接对照，差异只来自「这条请求走了哪条路」。")
+        L.append("")
+
+    if meta["provider"] == "auto":
+        L.append("## 分层路由")
+        L.append("")
+        L.append("| 路径 | 条数 | 占比 | 通过率 | 延迟 |")
+        L.append("|---|---|---|---|---|")
+        for key, label in (("rule", "规则（0 次 LLM）"), ("agent", "升级到 Agent")):
+            n = agg["n_rule"] if key == "rule" else agg["n_agent"]
+            rate = agg["n_rule"] / agg["n_ok"] if key == "rule" and agg["n_ok"] else \
+                   (agg["n_agent"] / agg["n_ok"] if agg["n_ok"] else None)
+            rows_k = [r for r in rows if r.get("status") == "ok" and r.get("route") == key]
+            lat = statistics.median([r["elapsed_s"] for r in rows_k]) if rows_k else 0.0
+            L.append(f"| {label} | {n} | {pct(rate)} | "
+                     f"{pct(agg['pass_' + key])} | {lat:.2f}s |")
+        L.append("")
+        L.append(f"升级率 **{pct(agg['escalation_rate'])}**。这个数不是缺陷指标：")
+        L.append("规则只接它读得懂的措辞，读不懂就交给循环——升级率高说明任务集的措辞")
+        L.append("本身超出规则覆盖，低则说明规则在泛化。两边都不该被优化成 0 或 100%。")
         L.append("")
 
     L.append("## 总览")
@@ -550,7 +582,7 @@ def main() -> int:
     try:
         from cvagent.agent.loop import Agent
         from cvagent.llm.registry import build_provider
-        from cvagent.pipeline import Pipeline
+        from cvagent.pipeline import Pipeline, escalate_reason, handoff
         from cvagent.tools.registry import default_registry
         from cvagent.vision.engine import YoloEngine
     except ImportError as e:
@@ -558,6 +590,7 @@ def main() -> int:
         return 2
 
     is_pipeline = args.provider == "pipeline"
+    is_auto = args.provider == "auto"
     if is_pipeline and args.model:
         print("pipeline 不走模型，--model 被忽略", file=sys.stderr)
     try:
@@ -603,15 +636,32 @@ def main() -> int:
             if is_pipeline:
                 # 同一个 registry、同一个 dispatch、同一条判据，只换决策方式
                 traj = Pipeline(registry).run(q)
+                route = "rule"
+            elif is_auto:
+                # 线上那条路径：先规则，判断不了才升级。交接文本与 CLI 同一份，
+                # 否则这里测的就不是部署出去的那个系统。
+                pre = Pipeline(registry).run(q)
+                reason = escalate_reason(pre)
+                if reason is None:
+                    traj, route = pre, "rule"
+                else:
+                    traj = Agent(
+                        build_provider(args.provider, args.model),
+                        registry,
+                        max_steps=args.max_steps,
+                    ).run(q, extra_context=handoff(pre))
+                    route = "agent"
             else:
                 traj = Agent(
                     build_provider(args.provider, args.model),
                     registry,
                     max_steps=args.max_steps,
                 ).run(q)
+                route = "agent"
             res = judge(task, traj, fx)
             res.update({"id": task["id"], "cat": task["cat"], "status": "ok",
                         "question": q, "note": task.get("note", ""),
+                        "route": route,
                         "expect_error": bool(task.get("expect_error")),
                         "has_arg_checks": bool(task.get("arg_checks"))})
         except _InfraError as e:

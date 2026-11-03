@@ -22,39 +22,123 @@ def _utf8_stdout() -> None:
 
 
 def cmd_ask(args) -> int:
+    """分层入口：规则先跑，判断不了才升级到 Agent。
+
+    两条路径共用同一个 registry、同一套工具契约，所以"谁答的"只在最后的
+    统计行里体现，答案格式对调用方是一致的。
+    """
     from .agent.loop import Agent
-    from .llm.registry import build_provider
-    from .report import render_markdown, save
+    from .errors import ToolError
+    from .pipeline import Pipeline, escalate_reason
+    from .session import Session
     from .tools.registry import default_registry
 
     engine = _engine(args)
     registry = default_registry(engine)
-    provider = build_provider(args.provider, args.model)
 
     question = args.question
     if args.image:
         question = f"{question}\n图片路径：{args.image}"
 
-    print(f"模型：{provider.name}/{provider.model}")
+    session = None
+    extra_context = ""
+    if args.session:
+        try:
+            session = Session.load(args.session)
+        except ToolError as e:
+            print(f"会话名无效：{e.message}\n  → {e.hint}", file=sys.stderr)
+            return 2
+        if args.new_session:
+            session = Session(id=args.session)
+        extra_context = session.context_for(question)
+
     print(f"问题：{args.question}")
     if args.image:
         print(f"图片：{args.image}")
+    if extra_context:
+        print(f"会话：{session.id}（已加载 {len(session.turns)} 轮历史）")
     print("正在加载检测模型…", flush=True)
     load_ms = engine.warmup()
     print(f"就绪（加载 {load_ms / 1000:.1f}s，后续单图推理约 0.1s）")
     print("─" * 60)
 
+    # ── 第一层：确定性规则。命中就直接交付，不构建 provider、不发请求 ──
+    if args.mode in ("auto", "pipeline"):
+        pre = Pipeline(registry).run(question)
+        reason = escalate_reason(pre)
+        if reason is None:
+            print("[规则] 命中，未调用 LLM")
+            return _deliver(pre, args, session)
+        if args.mode == "pipeline":
+            print(f"[规则] 未走通：{reason}（--mode pipeline 不升级）")
+            return _deliver(pre, args, session)
+        print(f"[规则 → Agent] {reason}")
+        # 把已经做过的动作交代给 Agent，免得它把同一次检测再跑一遍。
+        # 重复调用并不贵：engine 有结果缓存，命中只是一次 dispatch，不是一次推理。
+        extra_context = _handoff(pre, extra_context)
+
+    # ── 第二层：Agent 循环。只有上一层判断不了时才进得来 ──
+    from .llm.registry import build_provider
+
+    provider = build_provider(args.provider, args.model)
+    print(f"模型：{provider.name}/{provider.model}")
+
+    def on_delta(piece: str) -> None:
+        print(piece, end="", flush=True)
+
     agent = Agent(provider, registry, max_steps=args.max_steps, verbose=True)
     try:
-        traj = agent.run(question)
+        traj = agent.run(question, extra_context=extra_context,
+                         on_delta=on_delta if args.stream else None)
     except Exception as e:  # noqa: BLE001
         print(f"\n运行失败：{type(e).__name__}: {e}", file=sys.stderr)
         return 2
 
+    if args.stream:
+        print()
+    return _deliver(traj, args, session)
+
+
+def _handoff(pre, extra_context: str) -> str:
+    """把规则层已经做过的动作，写成一段上下文交给 Agent。"""
+    from .pipeline import handoff
+
+    return "\n".join(p for p in (handoff(pre), extra_context) if p)
+
+
+def _deliver(traj, args, session) -> int:
+    """两条路径共用的收尾：打印答案、落会话、存轨迹。"""
+    from .report import render_markdown, save
+    from .session import Turn
+
     print("─" * 60)
     print(traj.answer)
     print("─" * 60)
-    print(f"工具调用 {traj.n_tool_calls} 次（失败 {traj.n_failed_calls}），{traj.elapsed_s:.1f}s，终止：{traj.stopped_reason}")
+
+    if traj.stopped_reason.startswith("pipeline"):
+        # pipeline 没有决策轮，turns 是空的，用 totals() 会显示 0ms。
+        # 这里的耗时直接取各个工具的实测值。
+        tool_ms = sum(s.elapsed_ms for s in traj.steps)
+        print(
+            f"工具 {traj.n_tool_calls} 次；工具 {tool_ms:.0f}ms；"
+            f"总 {traj.elapsed_s * 1000:.0f}ms；路径：规则（0 次 LLM）；"
+            f"终止：{traj.stopped_reason}"
+        )
+    else:
+        tot = traj.totals()
+        print(
+            f"工具 {traj.n_tool_calls} 次（失败 {traj.n_failed_calls}），{traj.n_turns} 轮；"
+            f"LLM {tot['llm_ms']:.0f}ms / 工具 {tot['tool_ms']:.0f}ms；"
+            f"token {tot['prompt_tokens']} in / {tot['completion_tokens']} out；"
+            f"重试 {tot['retries']}；总 {traj.elapsed_s:.1f}s；终止：{traj.stopped_reason}"
+        )
+
+    if session is not None:
+        count = next((s.observation.get("count") for s in reversed(traj.steps)
+                      if isinstance(s.observation.get("count"), int)), None)
+        session.append(Turn(q=args.question, a=traj.answer,
+                            image=args.image or "", count=count, model=traj.model))
+        print(f"会话已保存：{session.save()}（第 {len(session.turns)} 轮）")
 
     if not args.no_save:
         out = save(traj)
@@ -66,6 +150,9 @@ def cmd_ask(args) -> int:
         print()
         print(render_markdown(traj))
 
+    # 4 = 规则认不出、但被 --mode pipeline 拦住没升级。脚本可以据此改走 Agent。
+    if traj.stopped_reason == "pipeline_unrouted":
+        return 4
     return 0 if traj.answer and traj.stopped_reason != "max_steps" else 3
 
 
@@ -236,7 +323,7 @@ def cmd_setup_weights(args) -> int:
 
 def cmd_replay(args) -> int:
     """从 trajectory.json 重新渲染报告，用于把历史运行变成文档素材。"""
-    from .agent.loop import Step, Trajectory
+    from .agent.loop import Step, Trajectory, TurnStat
     from .report import render_markdown
 
     data = json.loads(Path(args.file).read_text(encoding="utf-8"))
@@ -246,10 +333,24 @@ def cmd_replay(args) -> int:
         model=data.get("model", ""),
         stopped_reason=data.get("stopped_reason", "stop"),
         elapsed_s=data.get("elapsed_s", 0.0),
+        # 老轨迹没有 turns 字段：按 0 补齐，不报错
+        turns=[
+            TurnStat(
+                turn=int(t.get("turn", i)),
+                llm_ms=float(t.get("llm_ms", 0) or 0),
+                prompt_tokens=int(t.get("prompt_tokens", 0) or 0),
+                completion_tokens=int(t.get("completion_tokens", 0) or 0),
+                retries=int(t.get("retries", 0) or 0),
+                tool_ms=float(t.get("tool_ms", 0) or 0),
+                n_calls=int(t.get("n_calls", 0) or 0),
+            )
+            for i, t in enumerate(data.get("turns", []) or [])
+        ],
         steps=[
             Step(index=s["index"], tool=s["tool"], args=s.get("args", {}),
                  observation=s.get("observation", {}), ok=s.get("ok", True),
-                 elapsed_ms=s.get("elapsed_ms", 0.0), turn=s.get("turn", 0))
+                 elapsed_ms=s.get("elapsed_ms", 0.0), turn=s.get("turn", 0),
+                 retries=int(s.get("retries", 0) or 0))
             for s in data.get("steps", [])
         ],
     )
@@ -272,14 +373,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--device", help="cpu / cuda:0 / mps，默认读 CVAGENT_DEVICE")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    a = sub.add_parser("ask", help="自然语言提问，走完整 Agent 循环")
+    a = sub.add_parser("ask", help="自然语言提问：默认先走规则，判断不了再升级到 Agent")
     a.add_argument("question", help="问题文本")
     a.add_argument("--image", help="图片路径，会被拼进问题")
+    a.add_argument("--mode", default="auto", choices=["auto", "pipeline", "agent"],
+                   help="auto=规则优先未命中升级（默认）；pipeline=只用规则；agent=直接进循环")
     a.add_argument("--provider", help="openai / dashscope / deepseek / mock / auto")
     a.add_argument("--model", help="模型名，覆盖默认值")
     a.add_argument("--max-steps", type=int, default=None)
     a.add_argument("--no-save", action="store_true", help="不落盘")
     a.add_argument("--markdown", action="store_true", help="额外打印 Markdown 决策链")
+    a.add_argument("--stream", action="store_true", help="流式打印模型输出（先看到字，再看到工具行）")
+    a.add_argument("--session", metavar="NAME", help="会话名：加载历史结论并在成功后写回")
+    a.add_argument("--new-session", action="store_true", help="配合 --session，忽略已有历史重新开始")
     a.set_defaults(func=cmd_ask)
 
     d = sub.add_parser("detect", help="直接推理，不经 LLM")

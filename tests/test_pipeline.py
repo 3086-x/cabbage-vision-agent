@@ -16,7 +16,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from cvagent.pipeline import Pipeline, extract, route  # noqa: E402
+from cvagent.agent.loop import Step, Trajectory  # noqa: E402
+from cvagent.pipeline import (  # noqa: E402
+    Pipeline,
+    escalate_reason,
+    extract,
+    handoff,
+    route,
+)
 from cvagent.tools.registry import ToolRegistry  # noqa: E402
 from cvagent.tools.spec import build_tools  # noqa: E402
 from cvagent.vision.types import Box, DetectionResult  # noqa: E402
@@ -148,6 +155,60 @@ class TestRouting(unittest.TestCase):
 
     def test_unknown_returns_none(self):
         self.assertIsNone(self._r("今天天气怎么样"))
+
+    def test_subset_with_unknown_quantifier_gives_up(self):
+        # 「头 5 张」里的量词规则不认识，抽不出 limit。这时必须放弃，
+        # 不能让 batch_total 顶上去跑全量——那会交出一个看起来正常、
+        # 实际答非所问的汇总（留出集 H6 实测跑成了全目录 4134 株）。
+        self.assertIsNone(self._r("先跑头 5 张试试水，目录：D:/x", dirs=["D:/x"]))
+
+    def test_subset_with_known_quantifier_still_routes(self):
+        # 同一诉求用规则认识的写法，就该正常走 batch_limit，别一起放弃。
+        self.assertEqual(self._r("先跑前 5 张，目录：D:/x", dirs=["D:/x"]), "batch_limit")
+
+
+class TestEscalation(unittest.TestCase):
+    """分层路由的判据。这些错了不会报错，只会静默少升级或多升级。"""
+
+    def _traj(self, *, stopped="pipeline", steps=None):
+        return Trajectory(question="q", answer="a", stopped_reason=stopped,
+                          steps=steps or [])
+
+    def _step(self, ok=True, tool="count_cabbage", obs=None):
+        return Step(index=0, tool=tool, args={}, observation=obs or {}, ok=ok)
+
+    def test_unrouted_escalates(self):
+        self.assertIsNotNone(escalate_reason(self._traj(stopped="pipeline_unrouted")))
+
+    def test_clean_run_does_not_escalate(self):
+        t = self._traj(steps=[self._step(obs={"ok": True, "count": 48})])
+        self.assertIsNone(escalate_reason(t))
+
+    def test_retryable_error_escalates(self):
+        # 换个参数还能成，正是循环擅长、规则写不死的地方
+        obs = {"ok": False, "error": {"code": "Boom", "retryable": True}}
+        t = self._traj(steps=[self._step(ok=False, obs=obs)])
+        self.assertIn("可恢复", escalate_reason(t))
+
+    def test_non_retryable_error_stays(self):
+        # 文件不存在升级也没用，如实告诉用户比再跑一遍强
+        obs = {"ok": False, "error": {"code": "ImageNotFound", "retryable": False}}
+        t = self._traj(steps=[self._step(ok=False, obs=obs)])
+        self.assertIsNone(escalate_reason(t))
+
+
+class TestHandoff(unittest.TestCase):
+    def test_empty_steps_produce_no_context(self):
+        # 路由就没命中时 pipeline 一步没走。塞一句「无工具调用」会让模型
+        # 以为任务还没开始，比纯 Agent 多绕一轮——空手升级就该退化成纯 Agent。
+        self.assertEqual(handoff(Trajectory(question="q", answer="a", steps=[])), "")
+
+    def test_steps_are_summarized_with_numbers(self):
+        st = Step(index=0, tool="count_cabbage", args={},
+                  observation={"ok": True, "count": 49}, ok=True)
+        text = handoff(Trajectory(question="q", answer="a", steps=[st]))
+        self.assertIn("count_cabbage", text)
+        self.assertIn("49", text)
 
 
 class TestPipelineRun(unittest.TestCase):

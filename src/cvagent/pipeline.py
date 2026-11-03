@@ -120,9 +120,19 @@ _RULES: tuple[tuple[str, str], ...] = (
 # 需要的最少文件数。不满足就跳过，避免"哪张最多"被当成两图比较。
 _NEEDS_FILES = {"compare2": 2}
 
+# 「前/头/首 5 张」这类"只要子集"的诉求。extract 只认「前 N 张」，
+# 所以这里判的是"意图存在"而不是"数值抽到了"。
+_SUBSET_RE = re.compile(r"(?:前|头|首|最前)\s*\d+\s*张")
+
 
 def route(question: str, s: Slots) -> str | None:
     """返回意图名；匹配不到返回 None（宁可不做，也不猜）。"""
+    # 要子集但抽不出张数：量词写法不在规则里。此时任何 batch 意图都可能
+    # 退化成"跑全量"，交出一个看起来正常、实际答非所问的汇总——比说不出更糟。
+    # 所以连一条规则都不试，直接放弃，让上层升级。
+    if _SUBSET_RE.search(question) and s.limit is None:
+        return None
+
     for name, pat in _RULES:
         if not re.search(pat, question):
             continue
@@ -134,6 +144,47 @@ def route(question: str, s: Slots) -> str | None:
             continue
         return name
     return None
+
+
+# ─────────────────────────── 升级策略 ───────────────────────────
+# 分层架构的分界线画在这里：pipeline 只处理「下一步动作在写代码时就确定」的请求，
+# 其余交给 Agent。判据必须能从 Trajectory 里机械地读出来，不能靠读答案文本猜——
+# 猜字符串会在改措辞时静默失效，这类错这个项目已经踩过两次（评测的禁语正则）。
+#
+# 只收确定性信号。以下情况**故意不升级**：
+#   - 图片质量差 / 置信度双峰 / 检出数为 0（目录场景里 0 是正常值）
+#   - 用户只是想要个粗略答案
+# 它们属于业务判断，升级率会失控，而且 Agent 也未必答得更好。要加得先有数据。
+def escalate_reason(traj: Trajectory) -> str | None:
+    """返回升级原因；None 表示 pipeline 的结论可以直接交付。"""
+    if traj.stopped_reason == "pipeline_unrouted":
+        return "措辞不在规则覆盖范围内"
+
+    for st in traj.steps:
+        if st.ok:
+            continue
+        err = st.observation.get("error") or {}
+        # 可恢复错误意味着「换个参数还能成」——这正是循环擅长、规则写不死的地方。
+        # 不可恢复的（文件不存在、格式不支持）升级也没用，直接如实告诉用户。
+        if err.get("retryable"):
+            return f"{st.tool} 返回可恢复错误 {err.get('code')}"
+
+    return None
+
+
+def handoff(pre: Trajectory) -> str:
+    """把规则层做过的动作，写成交给 Agent 的上下文。
+
+    CLI 与评测必须用同一份：只要两边拼的文本不同，auto 模式在评测里的分数
+    就不是线上那条路径的分数了。
+    """
+    # 一步都没走（路由就没命中）时不要交接口。实测过：塞一句「无工具调用」
+    # 会让模型觉得任务还没开始，反而比纯 Agent 多绕一轮（H3 由此超预算）。
+    # 空手升级就退化成纯 Agent，那才是它该有的样子。
+    if not pre.steps:
+        return ""
+    done = "；".join(s.brief() for s in pre.steps)
+    return f"[前置规则层] 已尝试：{done}。这一层无法收尾，请在此基础上继续判断。"
 
 
 # ─────────────────────────── 管线 ───────────────────────────
@@ -154,15 +205,19 @@ class Pipeline:
         if intent is None:
             answer = ("无法确定要执行哪个动作。这条请求的措辞不在确定性规则的覆盖范围内，"
                       "需要走 Agent 路径，或把请求改写成明确的动作（如『数一下这张图的株数』）。")
+            # 与走通的 "pipeline" 分开：这是分层架构里唯一的升级信号，
+            # 用它判断要不要把请求交给 Agent，别写成两个字符串去比 answer。
+            stopped = "pipeline_unrouted"
         else:
             answer = getattr(self, f"_{intent}")(question, s)
+            stopped = "pipeline"
 
         return Trajectory(
             question=question,
             answer=answer,
             steps=self._steps,
             # 与 Agent 的 "stop" 区分开：这个结论不是模型决定收束的，是流程走到头了
-            stopped_reason="pipeline",
+            stopped_reason=stopped,
             elapsed_s=time.perf_counter() - t0,
             model="pipeline/rules",
         )

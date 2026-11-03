@@ -105,6 +105,19 @@ cvagent doctor --probe                 # 自检：权重、torch、工具、LLM
 cvagent ask "这张图有多少株甘蓝？" --image path/to/img.jpg --model qwen3.8-flash
 ```
 
+### 一键 demo（无 API Key）
+
+想先看它跑起来，再用真实模型：
+
+```bash
+python scripts/demo.py          # 真实检测 + 脚本化决策，约 30s（首次含模型加载）
+python scripts/demo.py --image path/to/img.jpg --device cpu
+```
+
+脚本会真实加载 `weights/best.pt`、执行 `detect_cabbage` → `refine_detection`，
+把轨迹写到 `runs/demo/trajectory.json`，并用退出码表示成败（0 通过 / 2 无有效株数）。
+它证明的是工具契约与循环工程可用；模型选工具的水平要靠后面的真实 provider 评测。
+
 **模型名必须确认，这坑很常见。** 百炼等平台的免费额度是**按模型分别发放**的：
 同一个 key，`qwen3.8-flash` 有额度、`qwen-plus` 可能已经用尽。所以
 `403 quota_free_tier_only` 通常不是 key 无效，而是**这个模型的额度没了**。
@@ -125,6 +138,21 @@ cvagent ask "这张图有多少株？" --image img.jpg --provider mock
 `mock` 是脚本化 provider，按固定策略驱动工具。它的作用不是"假装有 LLM"，
 而是让**决策链本身可测试**——工具契约、错误传播、观测截断、循环终止，
 这些逻辑与模型无关，不该等到接上模型才能验证。
+
+### 流式输出与会话记忆
+
+```bash
+# 先看到字，工具行随后；结束后仍会打印完整结论与开销
+cvagent ask "这张图有多少株？" --image img.jpg --stream
+
+# 同一会话的第二问会自动带上上一轮的结论与株数
+cvagent ask "那密度算高吗？" --image img.jpg --session field
+cvagent ask "换一块地" --image img2.jpg --session field --new-session
+```
+
+会话只存「问题 + 结论 + 株数 + 图名」，不存完整 messages：既省 token，也避免旧
+`tool_call_id` 在新请求里失效。历史取最近 3 轮、硬上限 1200 字，落在
+`runs/sessions/<name>.json`；文件损坏会备份为 `.bak-<时间戳>` 后当新会话继续。
 
 ### 供应商报错怎么读
 
@@ -150,6 +178,7 @@ cvagent ask "这张图有多少株？" --image img.jpg --provider mock
 | `count_cabbage` | 只要一个数字，要最省 token | 株数、密度、低置信框数 |
 | `refine_detection` | 低置信框多，或用户质疑准确性 | 两次阈值对比 + 稳定性判定 |
 | `batch_detect` | 给的是文件夹 | 总数、均值、极值、逐文件 |
+| `search_docs` | 问口径、依据、局限（为什么这个阈值、怎么分级、能否换算） | 带 `path#heading` 出处的知识库片段 |
 
 `cvagent tools --json` 输出完整 JSON Schema。
 
@@ -158,7 +187,8 @@ cvagent ask "这张图有多少株？" --image img.jpg --provider mock
 ## 可验证性
 
 ```bash
-python -m unittest discover -s tests    # 38 个测试，约 1 秒
+python -m unittest discover -s tests    # 116 个测试，约 2 秒
+python -m pytest -q                     # 123 条（含 7 条 pytest 风格的检索契约）
 ```
 
 测试**不加载权重、不联网**，在任何机器上都能跑。覆盖的是契约而非模型行为：
@@ -197,7 +227,7 @@ python eval/run_eval.py --provider dashscope --model qwen3.8-27b
 
 | 指标 | 分数 | 说明 |
 |---|---|---|
-| 任务通过率 | **96%** | 25/26 |
+| 任务通过率 | **96% / 92%** | 两次运行 25/26 与 24/26，见下方"分数会漂" |
 | 工具选择 | 100% | 没出现"该用 count 却跑 detect" |
 | 参数正确率 | 100% | conf 真降下去、`detail=full` 真传了 |
 | 错误恢复 | 100% | 4 条真的触发了错误并都给出有效结论 |
@@ -213,10 +243,44 @@ python eval/run_eval.py --provider dashscope --model qwen3.8-27b
 
 细节与指标的完整定义见 [eval/README.md](eval/README.md)。
 
-**跑一次要花多少**：每次请求的固定开销约 2200 token（系统提示 + 5 个工具 schema），
+### 对照：确定性管线 vs Agent
+
+有一部分请求根本不需要循环。为了量出这条边界，加了一条零 LLM 的确定性路径
+（`src/cvagent/pipeline.py`：正则路由意图 → 固定动作 → 模板作答），用同一个
+`run_eval.py`、同一套判据跑对照。
+
+|  | 主任务集 26 条 | **留出集 8 条（换措辞，规则没参考过）** | 零 LLM 占比 | 延迟中位 |
+|---|---|---|---|---|
+| 确定性管线 | 100% | **38%** | 100% | **0.13 s** |
+| Agent | 92% | **88%** | 0% | 11.64 s |
+| **分层（默认路径）** | **100%** | **88%** | **85% / 38%** | 规则 0.14 s |
+
+26 条的 100% 是**过拟合**（规则是看着那批措辞写的），不能当能力指标。真数字是留出集：
+管线掉到 38%，Agent 保持 88%，代价是 90 倍延迟。
+
+但第三行才是结论：**分层的通过率不低于纯 Agent，而 85% 的请求一次 LLM 都没调。**
+所以 `ask` 的默认行为就是分层——规则先跑，判断不了才升级：
+
+```bash
+cvagent ask "这张图有多少株？" --image img.jpg          # 命中规则：0 次 LLM，~0.1s
+cvagent ask "大概几棵？" --image img.jpg                 # 认不出，自动升级到循环
+cvagent ask "..." --mode pipeline                        # 只走规则，不升级（未命中退出码 4）
+cvagent ask "..." --mode agent                           # 直接进循环，跳过规则
+```
+
+升级判据只有两条，都能从轨迹机械读出：路由未命中（`stopped_reason="pipeline_unrouted"`），
+或某个工具返回 `retryable=true` 的错误。**故意没加**「检出 0 株 / 置信度双峰 / 图质量低」
+这类业务判断——那会让升级率失控，而且没有证据说明 Agent 在这几种情况下更好。
+
+两种失败不在同一层：**管线死在语言**（「几棵」不是「几株」、「头 5 张」不是「前 5 张」），
+**Agent 死在决策**（多调一次工具、绕路超预算、遇"对焦跑了"仍顺手检测一遍）。
+前者需要语言模型，后者需要更紧的提示，不能互相替代。
+完整实验、逐条失败原因与复现命令见 [docs/PIPELINE.md](docs/PIPELINE.md)。
+
+**跑一次要花多少**：每次请求的固定开销约 2400 token（系统提示 + 6 个工具 schema），
 26 条任务按平均 2.5 次请求算，全量约 18 万输入 token。按 qwen-plus 的
 0.8 元/百万 token 计，**一次全量评测约 0.2 元**；调阈值阶段先 `--limit 3` 冒烟，
-一条不到一分钱。
+一条不到一分钱。确定性管线那一组是 0 元。
 
 ---
 
@@ -229,12 +293,15 @@ src/cvagent/
 ├─ llm/        供应商抽象。base 定义 Message/ToolCall/Completion；
 │              openai_compat 收敛所有协议差异；mock 提供离线驱动
 ├─ agent/      规划-执行-观察循环，含步数收束与历史压缩
+├─ pipeline.py 零 LLM 的确定性路径：规则路由 + 固定动作 + 模板作答；
+│              同时给出升级判据（escalate_reason）与交接文本（handoff）
 ├─ report.py   轨迹落盘（trajectory.json + report.md）
-└─ cli.py      ask / detect / doctor / tools / replay
+└─ cli.py      ask / detect / tools / doctor / models / setup-weights / replay
 
 eval/
-├─ tasks.yaml   26 条任务，每条带期望工具序列与可机器判定的答案约束
-└─ run_eval.py  五层判定 + 数字溯源，输出 json 与 md 报告
+├─ tasks.yaml          26 条任务，每条带期望工具序列与可机器判定的答案约束
+├─ tasks_holdout.yaml  8 条换措辞的留出集，用于量规则的泛化半径
+└─ run_eval.py         五层判定 + 数字溯源，输出 json 与 md 报告
 ```
 
 不引 langchain。全部需求是"多轮消息 + function calling"，120 行客户端就够，
@@ -261,13 +328,21 @@ cabbage-vision-agent       ← 把这份视觉能力暴露成 Agent 可编排的
 
 - **密度分级是相对本数据集的**。训练集逐图株数四分位为 45/49/53，图来自同一块田，
   分布天然集中，`sparse/moderate/dense` 只有相对意义，不是农学绝对值。
+  `very_dense` 的下界 65 不是四分位点，而是为离群图留的外推边界。
 - **无法换算株/亩**。缺少地面标定（GSD），任何"每亩多少株"的说法都需要先做标定。
 - **单类单场景**。只认甘蓝，只在这种航高与光照下验证过。
-- **只测了一个模型**。`qwen3.8-27b` 的 96% 是一次运行的快照，温度设为 0 但云端
-  推理不保证逐字复现；换模型（qwen3.8-flash 等）分数会不同。要当结论用，
-  需要多模型 × 多次运行，这还没做。
+- **只测了一个模型，而且分数会漂**。`qwen3.8-27b` 在主任务集上两次运行分别是 96% 和 92%
+  （A4 稳定失败，F2 在两次之间变化），温度设为 0 也不保证云端逐字复现。所以这些数字
+  都是快照，不是区间；换模型（qwen3.8-flash 等）分数会不同。要当结论用需要
+  多模型 × 多次运行，这还没做。
 - **任务集是自拟的**。26 条覆盖了 7 类场景，但问题写法由我设计，
   不代表真实用户的分布；它衡量的是"这些行为对不对"，不是"用户满不满意"。
+- **确定性管线的 100% 是过拟合**。那 26 条的措辞就是写规则的参考，所以真实数字只能看
+  8 条留出集（38%）。留出集本身也太小，一条任务值 12.5 个百分点，给不出置信区间。
+  分层的 88% 同样只在这 8 条上成立，"不低于纯 Agent"这个结论不能外推。
+- **延迟不含冷启动**。0.13 s 是热进程内的单次检测，权重预热约 28 s 不计入；
+  端到端首包延迟没测。分层的两个延迟中位数（规则 / 升级）算的不是同一批任务，
+  不能用来比较"升级比直接跑慢多少"。
 
 ---
 
