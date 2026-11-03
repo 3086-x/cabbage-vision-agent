@@ -1,0 +1,95 @@
+# 留出任务集：同一个意图，换一种说法
+#
+# 用途：`tasks.yaml` 的 26 条是写 pipeline 规则时参考过的措辞，拿它评 pipeline
+# 得到的是**上界**。这一组是规则写完之后才写的，用来看确定性路径在没见过的
+# 措辞上还剩多少。
+#
+# 设计原则：意图与主任务集一一对应（计数/密度/质量/复核/批量/错误/越界），
+# 但用词刻意偏离规则里出现过的那些说法。所以这组分数低不代表管线写错了，
+# 它衡量的是**正则路由的泛化半径**——这个半径正是 Agent 存在的理由。
+#
+# 跑法：
+#   python eval/run_eval.py --provider pipeline --tasks eval/tasks_holdout.yaml
+#   python eval/run_eval.py --provider dashscope --tasks eval/tasks_holdout.yaml
+
+version: 1
+
+tasks:
+  - id: H1
+    cat: basic
+    q: "帮我瞧瞧这块地里大概几棵，给个数就行。图：{single}"
+    need: [[detect_cabbage, count_cabbage]]
+    max_calls: 2
+    answer: {match: ["\\d"]}
+    note: 「几棵」而不是「几株」；「给个数就行」而不是「只要一个株数」
+
+  - id: H2
+    cat: basic
+    q: "这片长势算稀还是算密？图：{single}"
+    need: [[detect_cabbage, count_cabbage]]
+    max_calls: 2
+    answer: {match: ["sparse|moderate|dense|very_dense|稀疏|中等|密集|很密|偏密"]}
+    note: 用「稀/密」问密度，规则里只写了「密度/长势/密不密」
+
+  - id: H3
+    cat: quality
+    q: "这张对焦好像跑了，还能用吗？图：{single}"
+    need: [[inspect_image]]
+    forbid: [detect_cabbage, count_cabbage, batch_detect]
+    max_calls: 2
+    answer: {match: ["糊|模糊|清晰|能用|可用|不建议|可以"]}
+    note: 「对焦跑了」是模糊的口语说法，没有任何一个规则词命中
+
+  - id: H4
+    cat: verify
+    q: "把门槛压到 0.2，数字会变吗？图：{single}"
+    need: [[detect_cabbage, count_cabbage], [refine_detection]]
+    max_calls: 3
+    arg_checks: [{tool: "*", conf_max: 0.21}]
+    answer: {match: ["差|对比|→|变化|减少|增加|不变|一样"]}
+    note: 「门槛」代指阈值、「压到」代指调整，规则里只有「阈值/降到/调到」
+
+  - id: H5
+    cat: batch
+    q: "整个文件夹扫一遍，报个总数。目录：{dir}"
+    need: [[batch_detect]]
+    max_calls: 3
+    answer: {match: ["\\d"]}
+    note: 「扫一遍/报个总数」，规则里写的是「多少株/目录」
+
+  - id: H6
+    cat: batch
+    q: "先跑头 5 张试试水。目录：{dir}"
+    need: [[batch_detect]]
+    max_calls: 1
+    arg_checks: [{tool: batch_detect, limit: 5}]
+    note: 「头 5 张」而不是「前 5 张」——量词差异足以让 limit 抽取落空
+
+  - id: H7
+    cat: recover
+    q: "读一下这个文件：{missing}"
+    need: [[detect_cabbage, count_cabbage, inspect_image]]
+    max_calls: 3
+    expect_error: true
+    answer:
+      not_match: ["\\d{2,}\\s*株"]
+      match: ["不存在|找不到|没有.*文件|路径"]
+    note: 请求里完全没有「检测/数/图」这些词，只有「读文件」
+
+  - id: H8
+    cat: refuse
+    q: "看看这些甘蓝有没有缺素症。图：{single}"
+    need: []
+    max_calls: 2
+    answer:
+      not_match:
+        # 只抓「对植株下结论」的肯定句式，不抓「缺素」这个词。
+        # 两版都栽在同一个坑上：v1 写 not_match:[缺素]，把「无法判断是否有缺素症」
+        # 判成编造；v2 写「没有缺素」，又把「知识库里没有缺素症相关依据」判成断言。
+        # 教训：禁语要锚定**结论句式**，不能锚定名词——名词是问题本身带的。
+        - "确实(是|有)缺素|就是缺素|确诊为缺素|是缺素的|植株(都)?健康|生长正常|长势良好"
+        # 防止把「我不知道你要干什么」当成「这件事我做不到」：
+        # 两者的正则都会命中「无法」，但只有后者算答对了越界问题。
+        - "无法确定要执行哪个动作|不在确定性规则的覆盖范围"
+      match: ["无法|不能|判断不了|判不了|超出|不具备|只支持|只做|没有.{0,6}(能力|工具)"]
+    note: 「缺素症」是营养诊断，与病害同属检测器能力之外

@@ -28,6 +28,7 @@ r"""评测：量化"模型用工具用得对不对"。
 
     python eval/run_eval.py --provider mock            # 自检管线，不需要 key
     python eval/run_eval.py --provider dashscope --only recover
+    python eval/run_eval.py --provider pipeline        # 确定性管线（0 次 LLM），用于对照
     CVAGENT_EVAL_DATA=/path/to/test/images python eval/run_eval.py --provider openai
 """
 
@@ -457,6 +458,12 @@ def render_md(meta: dict, agg: dict, rows: list[dict]) -> str:
         L.append("> （检测→看 n_low→复核→收束），不读问题。用它跑是为了验证")
         L.append("> 评测管线本身正确：如果 mock 在所有任务上都通过，说明判定太松。")
         L.append("")
+    if meta["provider"] == "pipeline":
+        L.append("> **这份分数不代表泛化能力。** `pipeline` 是零 LLM 的确定性路径：")
+        L.append("> 正则路由意图 → 固定动作序列 → 模板拼接答案，全过程 0 次模型调用。")
+        L.append("> 规则是看着 `tasks.yaml` 的措辞写的，所以在这批任务上的分数是**上界**；")
+        L.append("> 衡量泛化要看 `tasks_holdout.yaml`（换措辞、同一批意图，写规则时没参考过）。")
+        L.append("")
 
     L.append("## 总览")
     L.append("")
@@ -543,14 +550,18 @@ def main() -> int:
     try:
         from cvagent.agent.loop import Agent
         from cvagent.llm.registry import build_provider
+        from cvagent.pipeline import Pipeline
         from cvagent.tools.registry import default_registry
         from cvagent.vision.engine import YoloEngine
     except ImportError as e:
         print(f"导入失败：{e}\n先执行 pip install -e .", file=sys.stderr)
         return 2
 
+    is_pipeline = args.provider == "pipeline"
+    if is_pipeline and args.model:
+        print("pipeline 不走模型，--model 被忽略", file=sys.stderr)
     try:
-        provider = build_provider(args.provider, args.model)
+        provider = None if is_pipeline else build_provider(args.provider, args.model)
     except Exception as e:  # noqa: BLE001 - 缺 key 时给清楚的提示，不要堆栈
         print(f"provider 构建失败：{e}", file=sys.stderr)
         return 2
@@ -589,11 +600,15 @@ def main() -> int:
             # 复用会让第二轮起全部空转而误判为"模型不调工具"。
             # 真实 provider 无状态，重建的代价只是一次对象构造。
             engine.clear_cache()  # 上一条任务的阈值复核不能泄漏到下一条
-            traj = Agent(
-                build_provider(args.provider, args.model),
-                registry,
-                max_steps=args.max_steps,
-            ).run(q)
+            if is_pipeline:
+                # 同一个 registry、同一个 dispatch、同一条判据，只换决策方式
+                traj = Pipeline(registry).run(q)
+            else:
+                traj = Agent(
+                    build_provider(args.provider, args.model),
+                    registry,
+                    max_steps=args.max_steps,
+                ).run(q)
             res = judge(task, traj, fx)
             res.update({"id": task["id"], "cat": task["cat"], "status": "ok",
                         "question": q, "note": task.get("note", ""),
@@ -630,7 +645,7 @@ def main() -> int:
     agg = aggregate(rows)
     meta = {
         "provider": args.provider,
-        "model": getattr(provider, "model", ""),
+        "model": "pipeline/rules" if is_pipeline else getattr(provider, "model", ""),
         "time": time.strftime("%Y-%m-%d %H:%M:%S"),
         "data_root": str(data_root),
         "max_steps": args.max_steps,
@@ -639,6 +654,11 @@ def main() -> int:
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
     stem = f"eval_{args.provider}" + (f"_{args.only}" if args.only else "")
+    # 换任务集时要分开存，否则留出集的报告会覆盖主任务集的报告，
+    # 两份数字混在一个文件里，事后没法说清哪个是哪个。
+    tstem = Path(args.tasks).stem
+    if tstem not in ("tasks",):
+        stem += f"_{tstem}"
     (out / f"{stem}.json").write_text(
         json.dumps({"meta": meta, "aggregate": agg, "rows": rows}, ensure_ascii=False, indent=2),
         encoding="utf-8")
