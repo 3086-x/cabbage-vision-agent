@@ -138,7 +138,7 @@ class OpenAICompatProvider(ChatProvider):
         # 用全局环境变量会把两者一起带偏。
         self.proxies = {"http": proxy, "https": proxy} if proxy else None
 
-    def complete(self, messages: list[Message], tools: list[dict]) -> Completion:
+    def complete(self, messages: list[Message], tools: list[dict], on_delta=None) -> Completion:
         body = {
             "model": self.model,
             "messages": [m.to_api() for m in messages],
@@ -151,13 +151,103 @@ class OpenAICompatProvider(ChatProvider):
         last_err: Exception | None = None
         for attempt in range(self.max_retries + 1):
             try:
-                return self._post(body)
+                comp = self._post_stream(body, on_delta) if on_delta else self._post(body)
+                comp.retries = attempt
+                return comp
             except ProviderError as e:
                 last_err = e
                 if not e.retryable or attempt == self.max_retries:
                     raise
                 time.sleep(1.5 * (attempt + 1))
         raise last_err  # pragma: no cover
+
+    def _post_stream(self, body: dict, on_delta) -> Completion:
+        """SSE 流式。content 增量直接回调，tool_calls 按 index 拼装。
+
+        刻意不传 stream_options.include_usage：部分兼容网关不认这个字段会直接
+        400，而 token 统计在流式场景下本来就是 best-effort，缺了就记 0。
+        """
+        import requests
+
+        body = {**body, "stream": True}
+        try:
+            resp = requests.post(
+                f"{self.base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=body,
+                timeout=self.timeout,
+                proxies=self.proxies,
+                stream=True,
+            )
+        except requests.RequestException as e:
+            raise ProviderError(f"{self.name}: 网络错误 {e}", retryable=True) from e
+
+        if resp.status_code != 200:
+            code, hint, retryable = diagnose(resp.status_code, resp.text)
+            _, detail = _extract_error(resp.text)
+            parts = [f"{self.name}: HTTP {resp.status_code}"]
+            if code:
+                parts.append(f"[{code}]")
+            if detail:
+                parts.append(f"— {detail}")
+            if hint:
+                parts.append(f"\n  → {hint}")
+            raise ProviderError(" ".join(parts), status=resp.status_code,
+                                retryable=retryable, code=code, hint=hint)
+
+        content: list[str] = []
+        calls: dict[int, dict] = {}
+        usage: dict = {}
+        model = self.model
+        finish = "stop"
+        try:
+            for raw in resp.iter_lines(decode_unicode=True):
+                if not raw:
+                    continue
+                line = raw.strip()
+                if not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+                usage = chunk.get("usage") or usage
+                model = chunk.get("model") or model
+                for choice in chunk.get("choices") or []:
+                    delta = choice.get("delta") or {}
+                    piece = delta.get("content")
+                    if piece:
+                        content.append(piece)
+                        on_delta(piece)
+                    for tc in delta.get("tool_calls") or []:
+                        slot = calls.setdefault(int(tc.get("index", 0)),
+                                                {"id": "", "name": "", "arguments": ""})
+                        if tc.get("id"):
+                            slot["id"] = tc["id"]
+                        fn = tc.get("function") or {}
+                        if fn.get("name"):
+                            slot["name"] = fn["name"]
+                        if fn.get("arguments"):
+                            slot["arguments"] += fn["arguments"]
+                    if choice.get("finish_reason"):
+                        finish = choice["finish_reason"]
+        except requests.RequestException as e:
+            raise ProviderError(f"{self.name}: 流式中断 {e}", retryable=True) from e
+
+        tool_calls = [
+            ToolCall(id=calls[i]["id"] or f"call_{i}",
+                     name=calls[i]["name"],
+                     arguments=calls[i]["arguments"] or "{}")
+            for i in sorted(calls)
+        ]
+        return Completion(content="".join(content) or None, tool_calls=tool_calls,
+                          finish_reason=finish, usage=usage, model=model)
 
     def _post(self, body: dict) -> Completion:
         import requests

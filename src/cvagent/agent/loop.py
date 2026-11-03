@@ -38,9 +38,11 @@ SYSTEM_PROMPT = """你是一个甘蓝（cabbage）航拍图像的视觉分析助
 - 只需要一个株数、要最省时间 → count_cabbage
 - 检测结果里 n_low（低置信框数）> 0，或用户质疑准确性 → refine_detection 换阈值复核
 - 用户给的是文件夹 → batch_detect
+- 问口径/依据/局限（为什么用这个阈值、密度怎么分级、能不能换算株/亩、评测怎么判）→ search_docs
 
 ## 回答要求
 - 每个数字都必须来自工具返回，禁止估算或沿用常识。
+- 引用文档结论时保留出处（`path#heading`），例如 `docs/knowledge/density.md#阈值从哪来`。
 - 如果做了阈值复核且两次结果差异超过 5%，必须同时说明两个数字和差异，不要只报一个。
 - 密度分级（sparse/moderate/dense/very_dense）是相对本数据集的标签，不是农学绝对值；
   用户问"密不密"时可以给分级，问"多少株/亩"时说明缺少标定无法换算。
@@ -59,6 +61,9 @@ class Step:
     # 高效行为会被当成浪费步数惩罚。
     turn: int = 0
     elapsed_ms: float = 0.0
+    # 本轮 provider 调用经历的重试次数。同一轮并行调用的工具共享这个值：
+    # 重试发生在拿到响应之前，无法归因到某个具体工具。
+    retries: int = 0
 
     def brief(self) -> str:
         if not self.ok:
@@ -73,6 +78,29 @@ class Step:
 
 
 @dataclass
+class TurnStat:
+    """一轮决策的开销。工具耗时与 LLM 耗时分开记，避免互相掩盖。"""
+    turn: int
+    llm_ms: float = 0.0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    retries: int = 0
+    tool_ms: float = 0.0
+    n_calls: int = 0
+
+    def to_dict(self) -> dict:
+        return {
+            "turn": self.turn,
+            "llm_ms": round(self.llm_ms, 1),
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "retries": self.retries,
+            "tool_ms": round(self.tool_ms, 1),
+            "n_calls": self.n_calls,
+        }
+
+
+@dataclass
 class Trajectory:
     question: str
     answer: str
@@ -81,6 +109,7 @@ class Trajectory:
     elapsed_s: float = 0.0
     usage: dict = field(default_factory=dict)
     model: str = ""
+    turns: list[TurnStat] = field(default_factory=list)
 
     @property
     def n_tool_calls(self) -> int:
@@ -95,6 +124,20 @@ class Trajectory:
     def n_failed_calls(self) -> int:
         return sum(1 for s in self.steps if not s.ok)
 
+    def totals(self) -> dict:
+        """全链路开销汇总。token 取 provider 返回值，缺失时按 0 计。"""
+        return {
+            "llm_ms": round(sum(t.llm_ms for t in self.turns), 1),
+            "tool_ms": round(sum(t.tool_ms for t in self.turns), 1),
+            "wall_ms": round(self.elapsed_s * 1000, 1),
+            "prompt_tokens": sum(t.prompt_tokens for t in self.turns),
+            "completion_tokens": sum(t.completion_tokens for t in self.turns),
+            "retries": sum(t.retries for t in self.turns),
+            "n_turns": self.n_turns,
+            "n_tool_calls": self.n_tool_calls,
+            "n_failed_calls": self.n_failed_calls,
+        }
+
     def to_dict(self) -> dict:
         return {
             "question": self.question,
@@ -106,9 +149,12 @@ class Trajectory:
             "n_turns": self.n_turns,
             "n_failed_calls": self.n_failed_calls,
             "usage": self.usage,
+            "totals": self.totals(),
+            "turns": [t.to_dict() for t in self.turns],
             "steps": [
                 {"index": s.index, "turn": s.turn, "tool": s.tool, "args": s.args, "ok": s.ok,
-                 "elapsed_ms": round(s.elapsed_ms, 1), "observation": s.observation}
+                 "elapsed_ms": round(s.elapsed_ms, 1), "retries": s.retries,
+                 "observation": s.observation}
                 for s in self.steps
             ],
         }
@@ -132,7 +178,7 @@ class Agent:
         self.verbose = verbose
         self.on_step = on_step
 
-    def run(self, question: str, *, extra_context: str = "") -> Trajectory:
+    def run(self, question: str, *, extra_context: str = "", on_delta=None) -> Trajectory:
         t0 = time.perf_counter()
         user_content = question if not extra_context else f"{question}\n\n[附加上下文]\n{extra_context}"
         messages: list[Message] = [
@@ -140,19 +186,30 @@ class Agent:
             Message(role="user", content=user_content),
         ]
         steps: list[Step] = []
+        turns: list[TurnStat] = []
         usage_total: dict = {}
         stopped = "stop"
         model = getattr(self.provider, "model", "")
 
         for i in range(self.max_steps):
-            comp = self.provider.complete(messages, self.tools.schemas())
+            ts = TurnStat(turn=i)
+            llm_t0 = time.perf_counter()
+            if on_delta is None:
+                comp = self.provider.complete(messages, self.tools.schemas())
+            else:
+                comp = self.provider.complete(messages, self.tools.schemas(), on_delta=on_delta)
+            ts.llm_ms = (time.perf_counter() - llm_t0) * 1000
+            ts.retries = getattr(comp, "retries", 0)
+            ts.prompt_tokens = int((comp.usage or {}).get("prompt_tokens", 0) or 0)
+            ts.completion_tokens = int((comp.usage or {}).get("completion_tokens", 0) or 0)
+            turns.append(ts)
             model = comp.model or model
             _acc_usage(usage_total, comp.usage)
 
             if not comp.wants_tool:
                 return Trajectory(
                     question=question, answer=(comp.content or "").strip(),
-                    steps=steps, stopped_reason="stop",
+                    steps=steps, stopped_reason="stop", turns=turns,
                     elapsed_s=time.perf_counter() - t0, usage=usage_total, model=model,
                 )
 
@@ -162,10 +219,12 @@ class Agent:
                 st = time.perf_counter()
                 obs = self.tools.dispatch(call.name, call.arguments)
                 elapsed = (time.perf_counter() - st) * 1000
+                ts.tool_ms += elapsed
+                ts.n_calls += 1
                 args = _safe_json(call.arguments)
                 step = Step(index=len(steps), tool=call.name, args=args,
                             observation=obs, ok=bool(obs.get("ok")), elapsed_ms=elapsed,
-                            turn=i)
+                            turn=i, retries=ts.retries)
                 steps.append(step)
                 messages.append(Message(
                     role="tool",
@@ -182,7 +241,11 @@ class Agent:
 
         # 达到上限：强制收束，不要留下半句话
         stopped = "max_steps"
+        conclude = TurnStat(turn=len(turns))
+        c0 = time.perf_counter()
         final = self._force_conclude(messages)
+        conclude.llm_ms = (time.perf_counter() - c0) * 1000
+        turns.append(conclude)
         return Trajectory(
             question=question,
             answer=final,
@@ -191,6 +254,7 @@ class Agent:
             elapsed_s=time.perf_counter() - t0,
             usage=usage_total,
             model=model,
+            turns=turns,
         )
 
     def _force_conclude(self, messages: list[Message]) -> str:

@@ -216,6 +216,18 @@ def build_tools(engine) -> list[Tool]:
             ),
         }
 
+    _docs_index = None
+
+    def search_docs(query: str, top_k: int = 3) -> dict:
+        """在项目知识库里检索口径、依据与局限，返回带出处的片段。"""
+        nonlocal _docs_index
+        from ..config import DOCS_DIR
+        from .docs import DocsIndex
+
+        if _docs_index is None:
+            _docs_index = DocsIndex(DOCS_DIR)
+        return _docs_index.search(query, top_k=top_k)
+
     return [
         Tool(
             name="inspect_image",
@@ -294,6 +306,30 @@ def build_tools(engine) -> list[Tool]:
                 ["directory"],
             ),
             handler=batch_detect,
+        ),
+        Tool(
+            name="search_docs",
+            description=(
+                "在项目知识库里检索计数口径、密度分级依据、评测指标定义、项目局限。"
+                "当用户问『为什么是这个阈值』『密度怎么分级』『这个数字可不可信』"
+                "『能不能换算株/亩』『评测怎么算通过』时先调用它，按返回片段作答。"
+                "不要用它查图片内容——图片问题用 inspect_image / detect_cabbage。"
+            ),
+            parameters=_schema(
+                {
+                    "query": {"type": "string", "description": "检索关键词，中文短语比整句更好，如『密度分级』『复核稳定性』"},
+                    "top_k": {
+                        "type": "integer",
+                        "description": "返回片段数，1~5，默认 3",
+                        "minimum": 1,
+                        "maximum": 5,
+                    },
+                },
+                ["query"],
+            ),
+            handler=search_docs,
+            tags=("docs", "cheap"),
+            max_chars=2000,
         ),
     ]
 

@@ -57,6 +57,9 @@ class Completion:
     finish_reason: str = "stop"
     usage: dict = field(default_factory=dict)
     model: str = ""
+    # 本次调用在拿到 200 之前经历的重试次数。token/延迟之外，重试是第三个
+    # 成本来源：限流时它会把一次调用的 wall time 拉长数倍，但不出现在 usage 里。
+    retries: int = 0
 
     @property
     def wants_tool(self) -> bool:
@@ -90,4 +93,4 @@ class ChatProvider(Protocol):
     name: str
     model: str
 
-    def complete(self, messages: list[Message], tools: list[dict]) -> Completion: ...
+    def complete(self, messages: list[Message], tools: list[dict], on_delta=None) -> Completion: ...

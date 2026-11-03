@@ -33,7 +33,16 @@ class MockProvider:
         self.refine_conf = refine_conf
         self.stage = 0
 
-    def complete(self, messages: list[Message], tools: list[dict]) -> Completion:
+    def complete(self, messages: list[Message], tools: list[dict], on_delta=None) -> Completion:
+        comp = self._complete(messages, tools)
+        if on_delta and comp.content:
+            # 按 10 字符切块，模拟流式。真实 provider 的切块由供应商决定，
+            # 契约只要求「拼起来等于最终 content」。
+            for i in range(0, len(comp.content), 10):
+                on_delta(comp.content[i:i + 10])
+        return comp
+
+    def _complete(self, messages: list[Message], tools: list[dict]) -> Completion:
         if self.stage == 0:
             self.stage = 1
             path = self._extract_path(messages)

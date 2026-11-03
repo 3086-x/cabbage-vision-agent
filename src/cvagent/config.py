@@ -16,11 +16,13 @@ DEFAULT_IOU = float(os.getenv("CVAGENT_IOU", "0.45"))
 MIN_CONF = 0.05  # 低于此值的复核请求无意义，直接判为参数错误
 
 # ---- 密度分级 ----
-# 来源：D:\cabbage_project 训练集 262 张逐图标注框数的四分位点
+# 来源：D:\cabbage_project 训练集 262 张逐图标注框数的分布
 #   min=31  Q1=45  中位=49  Q3=53  max=83
 # 注意：这批图来自同一块田，株数天然集中在 45~55，绝对分级几乎无区分度。
 # 因此分级只作为**相对本数据集**的粗略标签，不宣称是农学意义上的密度。
 # 真正可比的量是 mean_density_per_mpx（株/百万像素），它不依赖分级阈值。
+# 前两个值是实测四分位点 Q1/Q3；65 不是四分位点，而是为离群图（>Q3 的极端
+# 密集图）留的外推边界，避免把 60 株的图也标成 very_dense。
 DENSITY_QUARTILES = (45, 53, 65)  # sparse < 45 <= moderate < 53 <= dense < 65 <= very_dense
 
 # ---- Agent 循环 ----
@@ -69,3 +71,7 @@ PROVIDERS: dict[str, dict] = {
 }
 
 RUNS_DIR = ROOT / "runs"
+# search_docs 的语料目录。默认只索引 docs/knowledge，避免把 README 里的
+# 招募/许可等无关内容也检索进来；换语料用 CVAGENT_DOCS 指定。
+DOCS_DIR = Path(os.getenv("CVAGENT_DOCS", ROOT / "docs" / "knowledge"))
+SESSIONS_DIR = Path(os.getenv("CVAGENT_SESSIONS", ROOT / "runs" / "sessions"))

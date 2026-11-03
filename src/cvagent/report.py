@@ -45,6 +45,26 @@ def render_markdown(traj: Trajectory, *, title: str = "运行记录") -> str:
                 lines.append(f"   提示：{err['hint']}")
         lines.append("")
 
+    if traj.turns:
+        tot = traj.totals()
+        lines += [
+            "## 开销",
+            "",
+            "| 轮次 | LLM 耗时 | 输入 token | 输出 token | 工具耗时 | 工具调用 | 重试 |",
+            "|---|---|---|---|---|---|---|",
+        ]
+        for t in traj.turns:
+            lines.append(
+                f"| {t.turn + 1} | {t.llm_ms:.0f}ms | {t.prompt_tokens} | {t.completion_tokens} "
+                f"| {t.tool_ms:.0f}ms | {t.n_calls} | {t.retries} |"
+            )
+        lines.append(
+            f"| **合计** | **{tot['llm_ms']:.0f}ms** | **{tot['prompt_tokens']}** "
+            f"| **{tot['completion_tokens']}** | **{tot['tool_ms']:.0f}ms** "
+            f"| **{tot['n_tool_calls']}** | **{tot['retries']}** |"
+        )
+        lines.append("")
+
     lines += ["## 结论", "", traj.answer or "（无）", ""]
     return "\n".join(lines)
 
