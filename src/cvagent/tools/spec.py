@@ -125,7 +125,9 @@ def build_tools(engine) -> list[Tool]:
         """对已检测过的图换阈值复核，复用上次结果做对比。"""
         from ..errors import InvalidArgument
 
-        cached = engine.get_cached(image_id)
+        # before 取"最近一次请求的结果"，不是缓存里最低阈值那份：用户要比的
+        # 是他上一条看到的数。取缓存会让连续第二次复核变成 0.1 对 0.1。
+        cached = engine.get_last(image_id) or engine.get_cached(image_id)
         if cached is None:
             raise InvalidArgument(
                 "image_id", image_id,

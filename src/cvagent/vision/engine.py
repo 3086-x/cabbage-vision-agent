@@ -56,6 +56,11 @@ class YoloEngine:
         self._model = None
         self._cache: dict[str, DetectionResult] = {}
         self._cache_order: list[str] = []
+        # 「最近一次请求拿到的结果」与「缓存里最低阈值的结果」是两件事。
+        # 前者给 refine 当 before（用户上一条看到的数），后者给阈值过滤用
+        # （阈值调高时从最低阈值结果里筛）。混用会让第二次复核退化成
+        # 「0.1 对 0.1，差 0 株」——数字没错，但对比毫无意义。
+        self._last: dict[str, DetectionResult] = {}
 
     # ---- 生命周期 ----
     def _ensure_model(self):
@@ -129,12 +134,13 @@ class YoloEngine:
             # 只需按本次阈值过滤掉低置信框即可，不必重新推理。
             if hit is not None and hit.conf_threshold <= conf and hit.iou_threshold == iou:
                 if hit.conf_threshold == conf:
+                    self._last[iid] = hit
                     return hit
                 kept = [b for b in hit.boxes if b.conf + 1e-9 >= conf]
                 if not kept:
                     # 阈值调高后一个框都不剩，语义等同"该阈值下没检测到"
                     raise NoDetection(conf, hit.conf_threshold < conf)
-                return DetectionResult(
+                result = DetectionResult(
                     image_id=hit.image_id,
                     path=hit.path,
                     width=hit.width,
@@ -145,6 +151,8 @@ class YoloEngine:
                     elapsed_ms=0.0,  # 未推理，命中缓存
                     device=hit.device,
                 )
+                self._last[iid] = result
+                return result
 
         self._ensure_model()
         t0 = time.perf_counter()
@@ -175,6 +183,7 @@ class YoloEngine:
             boxes=boxes, elapsed_ms=elapsed, device=self.device,
         )
         self._remember(iid, result)
+        self._last[iid] = result
         return result
 
     def _remember(self, iid: str, result: DetectionResult) -> None:
@@ -191,6 +200,10 @@ class YoloEngine:
     def get_cached(self, image_id: str) -> DetectionResult | None:
         return self._cache.get(image_id)
 
+    def get_last(self, image_id: str) -> DetectionResult | None:
+        """该图最近一次被请求时返回的结果。refine 的 before 取这个。"""
+        return self._last.get(image_id)
+
     def clear_cache(self) -> None:
         """清空检测缓存。
 
@@ -200,6 +213,7 @@ class YoloEngine:
         """
         self._cache.clear()
         self._cache_order.clear()
+        self._last.clear()
 
     def warmup(self) -> float:
         """预加载权重与 CUDA 上下文，返回耗时毫秒。

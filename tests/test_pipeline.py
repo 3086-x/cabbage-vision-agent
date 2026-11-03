@@ -70,6 +70,9 @@ class FakeEngine:
     def get_cached(self, image_id):
         return self._cache.get(image_id)
 
+    def get_last(self, image_id):
+        return self._cache.get(image_id)
+
     def clear_cache(self):
         self._cache.clear()
 

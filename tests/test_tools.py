@@ -56,6 +56,9 @@ class FakeEngine:
     def get_cached(self, image_id):
         return self._cache.get(image_id)
 
+    def get_last(self, image_id):
+        return self._cache.get(image_id)
+
 
 def make_registry(**kw) -> tuple[ToolRegistry, FakeEngine]:
     eng = FakeEngine(**kw)
