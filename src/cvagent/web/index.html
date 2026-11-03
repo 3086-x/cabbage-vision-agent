@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>甘蓝视觉 Agent</title>
+<style>
+:root{
+  --bg:#F7F7F8;--card:#FFF;--text:#171717;--muted:#52525B;--faint:#8A8A93;
+  --line:rgba(23,23,23,.12);--brand:#0AB861;--brand-ink:#004D26;--soft:#E5FFF2;
+  --agent:#E07B00;--agent-soft:#FFF4E0;--danger:#E8463A;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#131315;--card:#1B1B1E;--text:#E8E8EA;--muted:#A1A1AA;--faint:#71717A;
+  --line:rgba(232,232,234,.14);--brand:#32F08C;--brand-ink:#00351A;--soft:#0E3A2A;
+  --agent:#F0A93B;--agent-soft:#3A2A10;
+  color-scheme:dark;
+}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:15px/1.65 system-ui,-apple-system,"PingFang SC","Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:1240px;margin:0 auto;padding:20px 18px 28px;height:100%;
+  display:flex;flex-direction:column;gap:14px}
+
+/* ── header ── */
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+h1{font-size:17px;margin:0;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:12.5px;margin:2px 0 0}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none}
+.dot.ok{background:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 18%,transparent)}
+.dot.bad{background:var(--danger)}
+.spacer{flex:1}
+.hint{font-size:12px;color:var(--faint)}
+kbd{font:11px/1 ui-monospace,Consolas,monospace;border:1px solid var(--line);
+  border-radius:4px;padding:2px 4px;color:var(--muted)}
+
+/* ── layout ── */
+main{flex:1;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(340px,.85fr);
+  gap:14px;min-height:0}
+@media (max-width:900px){
+  main{grid-template-columns:1fr;min-height:0}
+  .wrap{height:auto}
+  #chat{height:70vh}
+}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px}
+
+/* ── 左：图像 ── */
+#left{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+#stage{position:relative;flex:1;min-height:280px;display:flex;align-items:center;
+  justify-content:center;cursor:pointer;overflow:auto;padding:12px}
+#stage.drag{outline:2px dashed var(--brand);outline-offset:-9px;background:var(--soft)}
+#cv{display:none;max-width:100%;max-height:100%;border-radius:8px}
+.empty{color:var(--muted);text-align:center;font-size:13.5px;padding:40px 16px;
+  pointer-events:none}
+.empty b{display:block;color:var(--text);font-size:15px;margin-bottom:6px}
+#readout{border-top:1px solid var(--line);padding:11px 14px;display:none;
+  align-items:center;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+#readout.on{display:flex}
+#readout .big{font:600 22px/1 ui-monospace,Consolas,monospace;color:var(--text)}
+#readout .kv{display:flex;flex-direction:column;gap:1px}
+#readout .kv span:first-child{font-size:11px;color:var(--faint)}
+#readout .kv span:last-child{font:500 13px/1.3 ui-monospace,Consolas,monospace;color:var(--text)}
+#readout .tools{margin-left:auto;display:flex;gap:6px}
+
+/* ── 右：对话 ── */
+#chat{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+#log{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+#log::-webkit-scrollbar{width:8px}
+#log::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+.msg{max-width:100%;font-size:14px}
+.msg.user{align-self:flex-end;background:var(--soft);color:var(--text);
+  border:1px solid color-mix(in srgb,var(--brand) 28%,transparent);
+  border-radius:12px 12px 4px 12px;padding:8px 12px;max-width:88%;white-space:pre-wrap;
+  word-break:break-word}
+.msg.bot{align-self:flex-start;width:100%}
+.ans{white-space:pre-wrap;word-break:break-word;line-height:1.7}
+.ans.pending::after{content:"";display:inline-block;width:7px;height:14px;
+  background:var(--muted);margin-left:2px;vertical-align:-2px;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;
+  font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+.badge{font-size:11px;font-weight:600;padding:2px 7px;border-radius:20px;letter-spacing:.01em}
+.badge.rule{background:var(--soft);color:var(--brand-ink);
+  border:1px solid color-mix(in srgb,var(--brand) 35%,transparent)}
+@media (prefers-color-scheme:dark){.badge.rule{color:var(--brand)}}
+.badge.agent{background:var(--agent-soft);color:var(--agent);
+  border:1px solid color-mix(in srgb,var(--agent) 35%,transparent)}
+.badge.err{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger);
+  border:1px solid color-mix(in srgb,var(--danger) 35%,transparent)}
+details{margin-top:8px;border-top:1px dashed var(--line);padding-top:7px}
+summary{cursor:pointer;font-size:12px;color:var(--muted);list-style:none;user-select:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"▸ ";color:var(--faint)}
+details[open] summary::before{content:"▾ "}
+.trace{margin:8px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.trace li{display:flex;gap:8px;align-items:baseline;font-size:12px;color:var(--muted);
+  line-height:1.5}
+.trace .n{font:11px ui-monospace,Consolas,monospace;color:var(--faint);flex:none;width:14px}
+.trace .t{font:600 12px ui-monospace,Consolas,monospace;color:var(--text);flex:none}
+.trace .o{color:var(--muted);word-break:break-word}
+.trace li.bad .t{color:var(--danger)}
+.note{font-size:12px;color:var(--faint);margin-top:6px}
+.note.warn{color:var(--agent)}
+
+/* ── 输入区 ── */
+#composer{border-top:1px solid var(--line);padding:10px 12px 12px}
+#chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.chip{font:12px system-ui;padding:4px 9px;border-radius:20px;cursor:pointer;
+  background:transparent;border:1px solid var(--line);color:var(--muted)}
+.chip:hover{border-color:var(--brand);color:var(--text)}
+#row{display:flex;gap:8px;align-items:flex-end}
+textarea{flex:1;resize:none;border:1px solid var(--line);background:var(--bg);
+  color:var(--text);border-radius:10px;padding:9px 11px;font:14px/1.5 inherit;
+  max-height:120px;min-height:40px;outline:none}
+textarea:focus{border-color:var(--brand)}
+#send{flex:none;height:40px;padding:0 16px;border-radius:10px;cursor:pointer;
+  border:1px solid var(--brand);background:var(--brand);color:var(--brand-ink);
+  font:600 14px system-ui}
+#send:disabled{opacity:.45;cursor:not-allowed}
+#foot{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:11.5px;color:var(--faint)}
+#foot label{display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--muted)}
+input[type=checkbox]{accent-color:var(--brand);margin:0}
+#foot a{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>甘蓝视觉 Agent</h1>
+      <p class="sub">规则优先，判断不了才升级到模型 · 每个答案都标出是谁给的</p>
+    </div>
+    <div class="spacer"></div>
+    <button class="chip" id="btnSample">载入示例图</button>
+    <span class="dot" id="statusDot"></span>
+    <span class="hint" id="statusText">连接中…</span>
+  </header>
+
+  <main>
+    <section class="card" id="left">
+      <div id="stage" title="点击选择图片，或拖拽 / Ctrl+V 粘贴">
+        <canvas id="cv"></canvas>
+        <div class="empty" id="empty">
+          <b>把航拍图拖到这里</b>
+          也可以点击选择、<kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴<br>
+          上传后就能直接提问，比如「这张图有多少株」
+        </div>
+      </div>
+      <div id="readout">
+        <div class="kv"><span>株数</span><span class="big" id="rCount">—</span></div>
+        <div class="kv"><span>密度</span><span id="rDensity">—</span></div>
+        <div class="kv"><span>置信度中位</span><span id="rMedian">—</span></div>
+        <div class="kv"><span>image_id</span><span id="rId">—</span></div>
+      </div>
+    </section>
+
+    <section class="card" id="chat">
+      <div id="log">
+        <div class="msg bot">
+          <div class="ans">先拖一张航拍图进来，然后随便问：
+· 这张图有多少株
+· 密度怎么样
+· 有多少低置信框
+· 再复核一下，阈值降到 0.1
+· 为什么阈值是 0.25
+
+也可以只问文档，不带图。</div>
+        </div>
+      </div>
+      <div id="composer">
+        <div id="chips">
+          <button class="chip" data-q="这张图有多少株？">多少株</button>
+          <button class="chip" data-q="密度怎么样？">密度</button>
+          <button class="chip" data-q="有多少低置信框？">低置信框</button>
+          <button class="chip" data-q="再复核一下，阈值降到 0.1">复核</button>
+          <button class="chip" data-q="为什么默认阈值是 0.25？">阈值依据</button>
+          <button class="chip" data-q="这块地每亩多少株？">每亩株数</button>
+        </div>
+        <div id="row">
+          <textarea id="q" rows="1" placeholder="问点什么，Enter 发送，Shift+Enter 换行"></textarea>
+          <button id="send">发送</button>
+        </div>
+        <div id="foot">
+          <label><input type="checkbox" id="forceAgent"> 强制走 Agent（用于对比同一问题的两条路径）</label>
+          <div class="spacer"></div>
+          <a href="/docs" target="_blank" rel="noreferrer">/docs</a>
+          <a href="/api/health" target="_blank" rel="noreferrer">/api/health</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<input id="file" type="file" accept="image/*" hidden>
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var stage=$('stage'), cv=$('cv'), empty=$('empty'), fileInput=$('file');
+  var log=$('log'), qBox=$('q'), send=$('send'), forceAgent=$('forceAgent');
+
+  var state = { imageId:null, img:null, busy:false, file:null };
+  var session = localStorage.getItem('cvagent.session');
+  if(!session){
+    session = 'web-' + Math.random().toString(36).slice(2,10);
+    localStorage.setItem('cvagent.session', session);
+  }
+
+  // 阈值口径说明：这个页面上出现的所有数字都来自工具返回，
+  // 前端不算任何统计量，避免和模型一样"估算"。
+
+  function el(tag, cls, txt){
+    var e = document.createElement(tag);
+    if(cls) e.className = cls;
+    if(txt != null) e.textContent = txt;
+    return e;
+  }
+  function scrollDown(){ log.scrollTop = log.scrollHeight; }
+
+  /* ── 图像 ── */
+  function drawBoxes(detections){
+    if(!state.img) return;
+    var im = state.img;
+    cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+    var ctx = cv.getContext('2d');
+    ctx.drawImage(im, 0, 0);
+    if(!detections || !detections.length) return;
+    var lw = Math.max(2, Math.round(im.naturalWidth / 480));
+    detections.forEach(function(d){
+      var b = d.box;
+      ctx.strokeStyle = '#0AB861';
+      ctx.lineWidth = lw;
+      ctx.strokeRect(b[0], b[1], b[2]-b[0], b[3]-b[1]);
+      ctx.fillStyle = 'rgba(10,184,97,.10)';
+      ctx.fillRect(b[0], b[1], b[2]-b[0], b[3]-b[1]);
+    });
+    cv.style.display = 'block';
+    empty.style.display = 'none';
+  }
+
+  function showImage(file){
+    return new Promise(function(resolve, reject){
+      var img = new Image();
+      img.onload = function(){ state.img = img; resolve(img); };
+      img.onerror = function(){ reject(new Error('图片解码失败')); };
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  async function upload(file){
+    if(!file) return;
+    if(!/^image\//.test(file.type)){ botNote('只支持图片文件', true); return; }
+    if(file.size > 16*1024*1024){ botNote('文件超过 16MB', true); return; }
+    try{
+      await showImage(file);
+      cv.style.display='block'; empty.style.display='none';
+      cv.width = state.img.naturalWidth; cv.height = state.img.naturalHeight;
+      cv.getContext('2d').drawImage(state.img, 0, 0);
+      setStatus('上传中…');
+      var fd = new FormData();
+      fd.append('file', file, file.name || 'upload.jpg');
+      var r = await fetch('/api/upload', {method:'POST', body:fd});
+      if(!r.ok){
+        var e = await r.json().catch(function(){ return {}; });
+        throw new Error(e.detail || ('HTTP ' + r.status));
+      }
+      var res = await r.json();
+      state.imageId = res.image_id;
+      $('rId').textContent = res.image_id;
+      $('rDensity').textContent = '—';
+      $('rCount').textContent = '—';
+      $('rMedian').textContent = '—';
+      $('readout').classList.add('on');
+      setStatus('图片已就绪 ' + res.width + '×' + res.height);
+      botNote('图片已就绪。现在可以问「这张图有多少株」。');
+    }catch(err){
+      setStatus('上传失败：' + err.message, true);
+      botNote('图片处理失败：' + err.message, true);
+    }
+  }
+
+  /* ── 状态 ── */
+  function setStatus(text, isErr){
+    $('statusText').textContent = text;
+    $('statusDot').className = 'dot ' + (isErr ? 'bad' : 'ok');
+  }
+  function botNote(text, isErr){
+    var m = el('div', 'msg bot');
+    var a = el('div', 'ans', text);
+    if(isErr) a.style.color = 'var(--danger)';
+    m.appendChild(a);
+    log.appendChild(m); scrollDown();
+  }
+
+  /* ── 对话 ── */
+  function addUser(text){
+    var m = el('div', 'msg user');
+    m.textContent = text;
+    log.appendChild(m); scrollDown();
+    return m;
+  }
+
+  function newBot(){
+    var m = el('div', 'msg bot');
+    var ans = el('div', 'ans pending');
+    var meta = el('div', 'meta');
+    var traceBox = el('details');
+    var summary = el('summary', null, '决策链');
+    var trace = el('ul', 'trace');
+    traceBox.style.display = 'none';
+    traceBox.appendChild(summary); traceBox.appendChild(trace);
+    m.appendChild(ans); m.appendChild(meta); m.appendChild(traceBox);
+    log.appendChild(m); scrollDown();
+    return { root:m, ans:ans, meta:meta, traceBox:traceBox, trace:trace, nSteps:0 };
+  }
+
+  function addStep(bubble, ev){
+    bubble.traceBox.style.display = 'block';
+    var li = el('li', ev.ok ? '' : 'bad');
+    li.appendChild(el('span', 'n', String(ev.index + 1)));
+    li.appendChild(el('span', 't', ev.tool));
+    li.appendChild(el('span', 'o', ev.brief + '  ' + Math.round(ev.elapsed_ms) + 'ms'));
+    bubble.trace.appendChild(li);
+    bubble.nSteps++;
+    scrollDown();
+  }
+
+  function fillMeta(bubble, res){
+    bubble.meta.innerHTML = '';
+    var isRule = res.route === 'pipeline';
+    var b = el('span', 'badge ' + (isRule ? 'rule' : 'agent'), isRule ? '规则' : 'Agent');
+    bubble.meta.appendChild(b);
+
+    var parts = [];
+    if(isRule) parts.push('0 次 LLM');
+    else parts.push(res.model);
+    parts.push(res.elapsed_s + 's');
+    parts.push(res.stats.n_tool_calls + ' 次工具');
+    if(!isRule && res.stats.prompt_tokens) {
+      parts.push(res.stats.prompt_tokens + ' in / ' + res.stats.completion_tokens + ' out');
+    }
+    if(res.stopped_reason === 'max_steps') parts.push('达到步数上限');
+    bubble.meta.appendChild(el('span', null, parts.join(' · ')));
+
+    if(res.escalate_reason){
+      var n = el('div', 'note warn', '升级原因：' + res.escalate_reason);
+      bubble.meta.parentNode.insertBefore(n, bubble.traceBox);
+    }
+
+    // 用最后一次检测观测刷新左下角读数
+    var last = null;
+    res.steps.forEach(function(s){
+      if(s.ok && (s.observation.count != null || s.observation.total_count != null)) last = s;
+    });
+    if(last){
+      var o = last.observation;
+      $('rCount').textContent = (o.count != null ? o.count : o.total_count);
+      if(o.density) $('rDensity').textContent = o.density;
+      if(o.score_stats && o.score_stats.median != null){
+        $('rMedian').textContent = o.score_stats.median;
+      } else if(o.conf_threshold != null){
+        $('rMedian').textContent = 'conf ' + o.conf_threshold;
+      }
+      if(o.image_id) $('rId').textContent = o.image_id;
+    }
+  }
+
+  function setBusy(v){
+    state.busy = v;
+    send.disabled = v;
+    send.textContent = v ? '…' : '发送';
+  }
+
+  async function ask(text){
+    if(state.busy || !text.trim()) return;
+    setBusy(true);
+    addUser(text);
+    var bubble = newBot();
+
+    var payload = {
+      question: text,
+      image_id: state.imageId,
+      session: session,
+      mode: forceAgent.checked ? 'agent' : 'auto'
+    };
+
+    var acc = '';
+    try{
+      var r = await fetch('/api/ask/stream', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      if(!r.ok || !r.body){
+        var e = await r.json().catch(function(){ return {}; });
+        throw new Error(e.detail || ('HTTP ' + r.status));
+      }
+
+      var reader = r.body.getReader();
+      var dec = new TextDecoder();
+      var buf = '';
+      while(true){
+        var chunk = await reader.read();
+        if(chunk.done) break;
+        buf += dec.decode(chunk.value, {stream:true});
+        var idx;
+        while((idx = buf.indexOf('\n\n')) >= 0){
+          var raw = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          if(!raw || raw.charAt(0) === ':') continue;
+          var line = raw.split('\n').filter(function(l){ return l.indexOf('data: ') === 0; })[0];
+          if(!line) continue;
+          var ev = JSON.parse(line.slice(6));
+
+          if(ev.type === 'route'){
+            // 原因只写在过渡文案里，不单独插节点：done 时 fillMeta 还会
+            // 正式渲染一条，两处都插就会重复。
+            bubble.ans.classList.add('pending');
+            bubble.ans.textContent = '规则层判断不了（' + ev.reason + '），交给模型…';
+          } else if(ev.type === 'step'){
+            bubble.ans.textContent = '正在调用 ' + ev.tool + '…';
+            addStep(bubble, ev);
+          } else if(ev.type === 'delta'){
+            acc += ev.text;
+            bubble.ans.textContent = acc;
+            scrollDown();
+          } else if(ev.type === 'done'){
+            bubble.ans.classList.remove('pending');
+            bubble.ans.textContent = ev.answer || '（没有给出结论）';
+            fillMeta(bubble, ev);
+            if(!ev.steps.length) bubble.traceBox.style.display = 'none';
+            setStatus('完成 · ' + ev.elapsed_s + 's · ' + (ev.route === 'pipeline' ? '规则' : 'Agent'));
+          } else if(ev.type === 'error'){
+            throw new Error(ev.message);
+          }
+        }
+      }
+    }catch(err){
+      bubble.ans.classList.remove('pending');
+      bubble.ans.textContent = '出错了：' + err.message;
+      bubble.ans.style.color = 'var(--danger)';
+      var b = el('span', 'badge err', '失败');
+      bubble.meta.appendChild(b);
+      setStatus('请求失败', true);
+    }finally{
+      setBusy(false);
+      qBox.focus();
+    }
+  }
+
+  /* ── 事件 ── */
+  stage.addEventListener('click', function(){ fileInput.click(); });
+  fileInput.addEventListener('change', function(e){ upload(e.target.files[0]); });
+  stage.addEventListener('dragover', function(e){ e.preventDefault(); stage.classList.add('drag'); });
+  stage.addEventListener('dragleave', function(){ stage.classList.remove('drag'); });
+  stage.addEventListener('drop', function(e){
+    e.preventDefault(); stage.classList.remove('drag');
+    upload(e.dataTransfer.files[0]);
+  });
+  window.addEventListener('paste', function(e){
+    if(!e.clipboardData) return;
+    var item = Array.prototype.slice.call(e.clipboardData.items)
+      .filter(function(i){ return i.type.indexOf('image/') === 0; })[0];
+    if(item) upload(item.getAsFile());
+  });
+
+  $('btnSample').addEventListener('click', async function(){
+    try{
+      var r = await fetch('/api/sample');
+      if(!r.ok) throw new Error('示例图不可用');
+      var blob = await r.blob();
+      await upload(new File([blob], 'sample.jpg', {type:'image/jpeg'}));
+    }catch(err){ setStatus('示例图加载失败：' + err.message, true); }
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('.chip[data-q]'), function(c){
+    c.addEventListener('click', function(){ ask(c.getAttribute('data-q')); });
+  });
+
+  function submit(){
+    var t = qBox.value;
+    qBox.value = '';
+    qBox.style.height = 'auto';
+    ask(t);
+  }
+  send.addEventListener('click', submit);
+  qBox.addEventListener('keydown', function(e){
+    if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); submit(); }
+  });
+  qBox.addEventListener('input', function(){
+    qBox.style.height = 'auto';
+    qBox.style.height = Math.min(qBox.scrollHeight, 120) + 'px';
+  });
+
+  /* ── 启动自检 ── */
+  (async function(){
+    try{
+      var r = await fetch('/api/health');
+      var h = await r.json();
+      if(h.ready){
+        setStatus('模型就绪 · ' + h.device + ' · 加载 ' + (h.warmup_ms/1000).toFixed(1) + 's');
+      }else{
+        setStatus('模型不可用：' + (h.error || '未知原因'), true);
+        botNote('服务在跑，但检测模型没加载起来：' + (h.error || '未知原因') +
+                '。文档类问题仍然可以问。', true);
+      }
+    }catch(e){ setStatus('服务未响应', true); }
+  })();
+})();
+</script>
+</body>
+</html>

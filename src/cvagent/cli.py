@@ -367,6 +367,30 @@ def _engine(args):
     )
 
 
+def cmd_serve(args) -> int:
+    """起 Web 服务：拖图 + 对话，答案旁标注是规则给的还是模型给的。
+
+    依赖是可选的（fastapi/uvicorn 不在核心依赖里，因为它们只有这一条路径要用），
+    所以这里显式判一次，缺了就给出确切的安装命令，而不是抛一个 ImportError 栈。
+    """
+    try:
+        import uvicorn
+    except ImportError:
+        print("缺少 web 依赖。安装：pip install -e '.[web]'", file=sys.stderr)
+        return 2
+
+    from . import serve
+
+    serve._engine_overrides.update(
+        weights=args.weights or None,
+        device=getattr(args, "device", None) or None,
+    )
+    print(f"甘蓝视觉 Agent → http://{args.host}:{args.port}", flush=True)
+    print("首次启动要加载并预热权重（CUDA 约 20~30s），就绪后终端会打印一行 [serve]", flush=True)
+    uvicorn.run(serve.app, host=args.host, port=args.port, log_level="info")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="cvagent", description="甘蓝航拍图像分析 Agent")
     p.add_argument("--weights", help="权重路径，默认 weights/best.pt")
@@ -416,6 +440,11 @@ def build_parser() -> argparse.ArgumentParser:
     r = sub.add_parser("replay", help="重渲染 trajectory.json")
     r.add_argument("file")
     r.set_defaults(func=cmd_replay)
+
+    w = sub.add_parser("serve", help="起 Web 界面：拖图 + 对话，标注每步是规则还是模型")
+    w.add_argument("--host", default="127.0.0.1")
+    w.add_argument("--port", type=int, default=8000)
+    w.set_defaults(func=cmd_serve)
     return p
 
 

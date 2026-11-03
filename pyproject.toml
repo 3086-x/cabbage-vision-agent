@@ -19,7 +19,17 @@ dependencies = [
 cvagent = "cvagent.cli:main"
 
 [project.optional-dependencies]
+# 只有 `cvagent serve` 这条路要用。不塞进核心依赖，是因为 CLI 的
+# ask / detect / replay 完全不需要 HTTP 栈，装了只是拖慢安装。
+web = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "python-multipart>=0.0.9",
+]
 dev = []
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+cvagent = ["web/*.html"]
