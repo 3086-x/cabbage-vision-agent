@@ -385,7 +385,9 @@ def cmd_serve(args) -> int:
         weights=args.weights or None,
         device=getattr(args, "device", None) or None,
     )
+    serve._llm_overrides.update(provider=args.provider, model=args.model)
     print(f"甘蓝视觉 Agent → http://{args.host}:{args.port}", flush=True)
+    print(f"模型：{args.provider or 'auto'} / {args.model or '默认'}", flush=True)
     print("首次启动要加载并预热权重（CUDA 约 20~30s），就绪后终端会打印一行 [serve]", flush=True)
     uvicorn.run(serve.app, host=args.host, port=args.port, log_level="info")
     return 0
@@ -444,6 +446,8 @@ def build_parser() -> argparse.ArgumentParser:
     w = sub.add_parser("serve", help="起 Web 界面：拖图 + 对话，标注每步是规则还是模型")
     w.add_argument("--host", default="127.0.0.1")
     w.add_argument("--port", type=int, default=8000)
+    w.add_argument("--provider", help="openai / dashscope / deepseek / mock / auto")
+    w.add_argument("--model", help="模型名。默认模型没额度时用它换一个")
     w.set_defaults(func=cmd_serve)
     return p
 

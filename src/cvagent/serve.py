@@ -120,6 +120,9 @@ _state: dict = {"ready": False, "error": "", "warmup_ms": 0.0, "device": "", "we
 # CLI 的 --weights / --device 在 uvicorn 启动前塞进来。用参数而不是改环境变量，
 # 是因为 config 是 import 时求值的，那时再 setenv 已经晚了。
 _engine_overrides: dict = {}
+# 模型侧同理。写死成 config 默认值是不够的：默认模型可能没有额度，
+# 而有额度的那个往往不叫默认名——这件事必须在启动参数里能改。
+_llm_overrides: dict = {}
 _engine = None
 _tools = None
 _infer_lock = threading.Lock()
@@ -221,6 +224,29 @@ def _slim_obs(obs: dict) -> dict:
     return out
 
 
+def _boxes_for(traj) -> list[list[float]]:
+    """从 engine 缓存里取**整张图**的框，供前端画。
+
+    为什么不在工具返回里取：`detect_cabbage` 默认 summary 只给前 3 个框，
+    那是模型的上下文预算，不是界面的。而缓存里本来就存着全量结果，取一次
+    不花推理时间，也保证「画出来的框数」和「答案里的株数」出自同一份数据。
+    """
+    if _engine is None:
+        return []
+    iid = next(
+        (s.observation["image_id"] for s in reversed(traj.steps)
+         if s.ok and isinstance(s.observation.get("image_id"), str)),
+        None,
+    )
+    if not iid:
+        return []
+    hit = _engine.get_cached(iid)
+    if hit is None:
+        return []
+    return [[round(b.x1), round(b.y1), round(b.x2), round(b.y2), round(b.conf, 3)]
+            for b in hit.boxes[:400]]
+
+
 def _pack(traj, route: str, reason: str | None, t0: float) -> dict:
     tot = traj.totals() if traj.turns else {}
     tool_ms = tot.get("tool_ms") or sum(s.elapsed_ms for s in traj.steps)
@@ -231,6 +257,7 @@ def _pack(traj, route: str, reason: str | None, t0: float) -> dict:
         "stopped_reason": traj.stopped_reason,
         "model": traj.model or "—",
         "elapsed_s": round(time.perf_counter() - t0, 2),
+        "boxes": _boxes_for(traj),
         "steps": [
             {
                 "index": s.index,
@@ -293,7 +320,7 @@ def _run(q: str, mode: str, emit) -> dict:
 
     from .llm.registry import build_provider
 
-    provider = build_provider(None, None)
+    provider = build_provider(_llm_overrides.get("provider"), _llm_overrides.get("model"))
     agent = Agent(
         provider,
         _tools,

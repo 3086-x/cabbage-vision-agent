@@ -6,188 +6,333 @@
 <title>甘蓝视觉 Agent</title>
 <style>
 :root{
-  --bg:#F7F7F8;--card:#FFF;--text:#171717;--muted:#52525B;--faint:#8A8A93;
-  --line:rgba(23,23,23,.12);--brand:#0AB861;--brand-ink:#004D26;--soft:#E5FFF2;
-  --agent:#E07B00;--agent-soft:#FFF4E0;--danger:#E8463A;
+  --bg:#FAFAF8;
+  --card:#FFFFFF;
+  --stage:#0D0F0E;
+  --text:#14150F;
+  --body:#3A3B34;
+  --muted:#74756C;
+  --faint:#A3A49B;
+  --line:rgba(20,21,15,.085);
+  --line-strong:rgba(20,21,15,.14);
+  --brand:#0A7D57;
+  --brand-bright:#32F08C;
+  --brand-soft:#E9F6F0;
+  --agent:#B45309;
+  --agent-soft:#FDF3E4;
+  --danger:#C1392B;
+  --shadow:0 1px 2px rgba(20,21,15,.04),0 8px 24px -12px rgba(20,21,15,.10);
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root{
-  --bg:#131315;--card:#1B1B1E;--text:#E8E8EA;--muted:#A1A1AA;--faint:#71717A;
-  --line:rgba(232,232,234,.14);--brand:#32F08C;--brand-ink:#00351A;--soft:#0E3A2A;
-  --agent:#F0A93B;--agent-soft:#3A2A10;
+  --bg:#0F1010;
+  --card:#17181A;
+  --stage:#0A0B0B;
+  --text:#EDEEE8;
+  --body:#C9CAC3;
+  --muted:#8F9088;
+  --faint:#6A6B64;
+  --line:rgba(237,238,232,.09);
+  --line-strong:rgba(237,238,232,.16);
+  --brand:#4ADE9B;
+  --brand-soft:#10241C;
+  --agent:#E8A24A;
+  --agent-soft:#2A2013;
+  --danger:#F08A7E;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
   color-scheme:dark;
 }}
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--text);
-  font:15px/1.65 system-ui,-apple-system,"PingFang SC","Segoe UI",sans-serif;
-  -webkit-font-smoothing:antialiased}
-.wrap{max-width:1240px;margin:0 auto;padding:20px 18px 28px;height:100%;
-  display:flex;flex-direction:column;gap:14px}
-
-/* ── header ── */
-header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-h1{font-size:17px;margin:0;letter-spacing:-.01em}
-.sub{color:var(--muted);font-size:12.5px;margin:2px 0 0}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none}
-.dot.ok{background:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 18%,transparent)}
-.dot.bad{background:var(--danger)}
-.spacer{flex:1}
-.hint{font-size:12px;color:var(--faint)}
-kbd{font:11px/1 ui-monospace,Consolas,monospace;border:1px solid var(--line);
-  border-radius:4px;padding:2px 4px;color:var(--muted)}
-
-/* ── layout ── */
-main{flex:1;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(340px,.85fr);
-  gap:14px;min-height:0}
-@media (max-width:900px){
-  main{grid-template-columns:1fr;min-height:0}
-  .wrap{height:auto}
-  #chat{height:70vh}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
 }
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px}
+.app{height:100%;max-width:1320px;margin:0 auto;padding:0 20px 18px;
+  display:flex;flex-direction:column}
 
-/* ── 左：图像 ── */
-#left{display:flex;flex-direction:column;min-height:0;overflow:hidden}
-#stage{position:relative;flex:1;min-height:280px;display:flex;align-items:center;
-  justify-content:center;cursor:pointer;overflow:auto;padding:12px}
-#stage.drag{outline:2px dashed var(--brand);outline-offset:-9px;background:var(--soft)}
-#cv{display:none;max-width:100%;max-height:100%;border-radius:8px}
-.empty{color:var(--muted);text-align:center;font-size:13.5px;padding:40px 16px;
-  pointer-events:none}
-.empty b{display:block;color:var(--text);font-size:15px;margin-bottom:6px}
-#readout{border-top:1px solid var(--line);padding:11px 14px;display:none;
-  align-items:center;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
-#readout.on{display:flex}
-#readout .big{font:600 22px/1 ui-monospace,Consolas,monospace;color:var(--text)}
-#readout .kv{display:flex;flex-direction:column;gap:1px}
-#readout .kv span:first-child{font-size:11px;color:var(--faint)}
-#readout .kv span:last-child{font:500 13px/1.3 ui-monospace,Consolas,monospace;color:var(--text)}
-#readout .tools{margin-left:auto;display:flex;gap:6px}
+/* ══ header ══ */
+header{display:flex;align-items:center;gap:14px;height:58px;flex:none}
+.brand{display:flex;align-items:center;gap:9px;font-weight:640;font-size:15px;
+  letter-spacing:-.015em}
+.logo{width:20px;height:20px;border-radius:6px;flex:none;position:relative;
+  background:linear-gradient(145deg,var(--brand),color-mix(in srgb,var(--brand) 55%,#0B3D2C))}
+.logo::after{content:"";position:absolute;inset:5px;border-radius:2px;
+  border:1.5px solid rgba(255,255,255,.85);border-right-color:transparent;
+  border-bottom-color:transparent;transform:rotate(45deg)}
+.spacer{flex:1}
+.stats{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.stats b{color:var(--text);font-weight:600}
+.stats .sep{color:var(--faint);margin:0 2px}
+.state{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);
+  padding:5px 10px;border-radius:20px;border:1px solid var(--line);background:var(--card)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--faint);flex:none}
+.dot.ok{background:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 16%,transparent)}
+.dot.bad{background:var(--danger);box-shadow:0 0 0 3px color-mix(in srgb,var(--danger) 16%,transparent)}
+.dot.busy{background:var(--agent);animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
-/* ── 右：对话 ── */
-#chat{display:flex;flex-direction:column;min-height:0;overflow:hidden}
-#log{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
-#log::-webkit-scrollbar{width:8px}
-#log::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
-.msg{max-width:100%;font-size:14px}
-.msg.user{align-self:flex-end;background:var(--soft);color:var(--text);
-  border:1px solid color-mix(in srgb,var(--brand) 28%,transparent);
-  border-radius:12px 12px 4px 12px;padding:8px 12px;max-width:88%;white-space:pre-wrap;
-  word-break:break-word}
-.msg.bot{align-self:flex-start;width:100%}
-.ans{white-space:pre-wrap;word-break:break-word;line-height:1.7}
-.ans.pending::after{content:"";display:inline-block;width:7px;height:14px;
-  background:var(--muted);margin-left:2px;vertical-align:-2px;animation:blink 1s steps(2) infinite}
-@keyframes blink{50%{opacity:0}}
-.meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;
-  font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}
-.badge{font-size:11px;font-weight:600;padding:2px 7px;border-radius:20px;letter-spacing:.01em}
-.badge.rule{background:var(--soft);color:var(--brand-ink);
-  border:1px solid color-mix(in srgb,var(--brand) 35%,transparent)}
-@media (prefers-color-scheme:dark){.badge.rule{color:var(--brand)}}
-.badge.agent{background:var(--agent-soft);color:var(--agent);
-  border:1px solid color-mix(in srgb,var(--agent) 35%,transparent)}
-.badge.err{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger);
-  border:1px solid color-mix(in srgb,var(--danger) 35%,transparent)}
-details{margin-top:8px;border-top:1px dashed var(--line);padding-top:7px}
-summary{cursor:pointer;font-size:12px;color:var(--muted);list-style:none;user-select:none}
+/* ══ layout ══ */
+main{flex:1;display:grid;grid-template-columns:minmax(0,1.08fr) minmax(360px,.92fr);
+  gap:16px;min-height:0;max-height:780px}
+@media (max-width:960px){
+  .app{height:auto;padding-bottom:12px}
+  main{grid-template-columns:1fr}
+  .left{height:56vh;min-height:340px}
+  .chat{height:76vh}
+}
+
+/* ══ 左：图像 ══ */
+.left{background:var(--card);border-radius:16px;overflow:hidden;
+  display:flex;flex-direction:column;min-height:0;
+  border:1px solid var(--line);box-shadow:var(--shadow)}
+.stage{flex:1;background:var(--stage);position:relative;display:flex;
+  align-items:center;justify-content:center;overflow:auto;padding:22px;
+  cursor:pointer;min-height:200px}
+/* 取景器质感：很淡的点阵 + 顶部一点绿光。纯黑面板会显得像加载失败。 */
+.stage::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:
+    radial-gradient(ellipse at 50% -8%,rgba(50,240,140,.07),transparent 58%),
+    linear-gradient(rgba(255,255,255,.021) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.021) 1px,transparent 1px);
+  background-size:100% 100%,36px 36px,36px 36px}
+.stage.drag::after{content:"松手放下";position:absolute;inset:12px;border-radius:10px;
+  border:1.5px dashed rgba(50,240,140,.7);background:rgba(50,240,140,.07);
+  color:#9FF7C6;display:flex;align-items:center;justify-content:center;
+  font-size:13px;letter-spacing:.04em}
+#cv{display:none;width:100%;height:100%;object-fit:contain;border-radius:8px;
+  position:relative}
+/* canvas 是替换元素，object-fit 对生效；只给 max-* 会让 1024×1024 被压成扁的 */
+.empty{width:100%;display:flex;align-items:center;justify-content:center;position:relative}
+.dropzone{width:330px;max-width:82%;aspect-ratio:16/10;border:1.5px dashed rgba(255,255,255,.17);
+  border-radius:14px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:8px;transition:border-color .2s,background .2s}
+.stage:hover .dropzone{border-color:rgba(50,240,140,.42);background:rgba(50,240,140,.035)}
+.dropzone svg{width:30px;height:30px;opacity:.42;margin-bottom:2px}
+.dropzone b{color:#CBCFC8;font-size:14.5px;font-weight:560;letter-spacing:-.01em}
+.dropzone span{font-size:12px;color:#787C75;line-height:1.7;white-space:nowrap}
+.dropzone kbd{font:11px/1 ui-monospace,Consolas,monospace;border:1px solid #3B3F3A;
+  border-radius:4px;padding:2px 5px;color:#9DA199;margin:0 1px}
+.stage-meta{position:absolute;left:0;right:0;bottom:13px;text-align:center;
+  font-size:10.5px;color:#4F534D;letter-spacing:.03em}
+
+/* 指标条：有结果才出现，空态不摆一排横线占地方 */
+.metrics{display:none;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);
+  flex:none}
+.metrics.on{display:grid}
+.metrics .m{padding:11px 14px 12px;border-right:1px solid var(--line);min-width:0}
+.metrics .m:last-child{border-right:0}
+.metrics .k{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--faint);font-weight:560;margin-bottom:3px}
+.metrics .v{font-size:17px;font-weight:620;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.metrics .v.sm{font-size:12.5px;font-weight:500;color:var(--muted);
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:0}
+
+/* ══ 右：对话 ══ */
+.chat{display:flex;flex-direction:column;min-height:0;background:var(--card);
+  border-radius:16px;border:1px solid var(--line);box-shadow:var(--shadow);
+  overflow:hidden}
+.log{flex:1;overflow-y:auto;padding:22px 22px 8px;display:flex;
+  flex-direction:column;gap:20px;scroll-behavior:smooth}
+.log::-webkit-scrollbar{width:9px}
+.log::-webkit-scrollbar-track{background:transparent}
+.log::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:5px;
+  border:3px solid var(--card)}
+
+.turn{display:flex;flex-direction:column;gap:9px;animation:rise .28s cubic-bezier(.2,.7,.3,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+
+.q{align-self:flex-end;max-width:86%;background:var(--brand-soft);
+  color:var(--text);border-radius:14px 14px 5px 14px;padding:8px 13px;
+  font-size:14px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+@media (prefers-color-scheme:dark){.q{border:1px solid var(--line)}}
+
+.a{max-width:100%}
+.a .text{font-size:15px;line-height:1.78;color:var(--body);white-space:pre-wrap;
+  word-break:break-word;letter-spacing:-.003em}
+.a .text.lead{color:var(--text);font-weight:560;font-size:15.5px}
+.a .text.typing::after{content:"";display:inline-block;width:2px;height:15px;
+  background:var(--brand);margin-left:3px;vertical-align:-2px;animation:caret 1.05s step-end infinite}
+@keyframes caret{50%{opacity:0}}
+
+/* 徽章行 */
+.meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:11px;
+  font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums;line-height:1.5}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;
+  font-weight:600;padding:2.5px 8px 2.5px 6px;border-radius:20px;
+  letter-spacing:.005em}
+.tag i{width:5px;height:5px;border-radius:50%;flex:none;font-style:normal}
+.tag.rule{background:var(--brand-soft);color:var(--brand)}
+.tag.rule i{background:var(--brand)}
+.tag.agent{background:var(--agent-soft);color:var(--agent)}
+.tag.agent i{background:var(--agent)}
+.tag.bad{background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger)}
+.tag.bad i{background:var(--danger)}
+.meta .div{color:var(--line-strong)}
+
+.reason{margin-top:9px;font-size:12.5px;color:var(--agent);
+  display:flex;align-items:flex-start;gap:6px;line-height:1.6}
+.reason::before{content:"↳";flex:none;opacity:.7}
+
+/* 决策链 */
+details{margin-top:10px}
+summary{cursor:pointer;font-size:12px;color:var(--muted);list-style:none;
+  user-select:none;display:inline-flex;align-items:center;gap:5px;
+  padding:3px 0;transition:color .15s}
+summary:hover{color:var(--text)}
 summary::-webkit-details-marker{display:none}
-summary::before{content:"▸ ";color:var(--faint)}
-details[open] summary::before{content:"▾ "}
-.trace{margin:8px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
-.trace li{display:flex;gap:8px;align-items:baseline;font-size:12px;color:var(--muted);
-  line-height:1.5}
-.trace .n{font:11px ui-monospace,Consolas,monospace;color:var(--faint);flex:none;width:14px}
-.trace .t{font:600 12px ui-monospace,Consolas,monospace;color:var(--text);flex:none}
-.trace .o{color:var(--muted);word-break:break-word}
-.trace li.bad .t{color:var(--danger)}
-.note{font-size:12px;color:var(--faint);margin-top:6px}
-.note.warn{color:var(--agent)}
+summary .cv{transition:transform .18s;font-size:9px;color:var(--faint)}
+details[open] summary .cv{transform:rotate(90deg)}
+.trace{margin:9px 0 0;padding:0 0 0 3px;list-style:none;
+  border-left:1.5px solid var(--line);display:flex;flex-direction:column;gap:11px}
+.trace li{position:relative;padding-left:15px;font-size:12px;line-height:1.55}
+.trace li::before{content:"";position:absolute;left:-4.5px;top:6px;width:7px;height:7px;
+  border-radius:50%;background:var(--card);border:1.5px solid var(--line-strong)}
+.trace li.ok::before{border-color:var(--brand);background:var(--brand-soft)}
+.trace li.bad::before{border-color:var(--danger)}
+.trace .row1{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.trace .name{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+  font-weight:600;font-size:11.5px;color:var(--text)}
+.trace .ms{color:var(--faint);font-size:11px;font-variant-numeric:tabular-nums}
+.trace .obs{color:var(--muted);margin-top:1px;word-break:break-word;
+  font-family:ui-monospace,Consolas,monospace;font-size:11px}
 
-/* ── 输入区 ── */
-#composer{border-top:1px solid var(--line);padding:10px 12px 12px}
-#chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
-.chip{font:12px system-ui;padding:4px 9px;border-radius:20px;cursor:pointer;
-  background:transparent;border:1px solid var(--line);color:var(--muted)}
-.chip:hover{border-color:var(--brand);color:var(--text)}
-#row{display:flex;gap:8px;align-items:flex-end}
-textarea{flex:1;resize:none;border:1px solid var(--line);background:var(--bg);
-  color:var(--text);border-radius:10px;padding:9px 11px;font:14px/1.5 inherit;
-  max-height:120px;min-height:40px;outline:none}
-textarea:focus{border-color:var(--brand)}
-#send{flex:none;height:40px;padding:0 16px;border-radius:10px;cursor:pointer;
-  border:1px solid var(--brand);background:var(--brand);color:var(--brand-ink);
-  font:600 14px system-ui}
-#send:disabled{opacity:.45;cursor:not-allowed}
-#foot{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:11.5px;color:var(--faint)}
-#foot label{display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--muted)}
-input[type=checkbox]{accent-color:var(--brand);margin:0}
-#foot a{color:var(--muted)}
+/* 空态引导：问题直接可点，右边标出它会走哪条路——
+   让人在提问之前就明白"规则"和"Agent"不是两种说法，是两条路径 */
+.hero-turn{margin:auto 0}
+.hero h2{font-size:19px;font-weight:640;letter-spacing:-.022em;margin:0 0 6px}
+.hero>p{color:var(--muted);font-size:13.5px;line-height:1.7;margin:0 0 14px}
+.hero-list{border-top:1px solid var(--line)}
+.hero-q{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  background:transparent;border:0;border-bottom:1px solid var(--line);
+  padding:11px 2px;cursor:pointer;font:14px/1.5 inherit;color:var(--text);
+  transition:background .13s,color .13s}
+.hero-q:hover{background:var(--brand-soft);color:var(--brand)}
+.hero-q .rt{margin-left:auto;font-size:11px;color:var(--faint);flex:none;
+  font-variant-numeric:tabular-nums}
+.hero-q:hover .rt{color:var(--brand);opacity:.8}
+.hero-foot{margin-top:14px;font-size:12px;color:var(--faint);line-height:1.8}
+
+/* ══ 输入区 ══ */
+.composer{flex:none;padding:10px 14px 14px;background:linear-gradient(to top,var(--card) 72%,transparent)}
+.box{display:flex;align-items:flex-end;gap:8px;background:var(--bg);
+  border:1.5px solid var(--line-strong);border-radius:19px;padding:6px 6px 6px 14px;
+  transition:border-color .18s,box-shadow .18s}
+.box:focus-within{border-color:color-mix(in srgb,var(--brand) 55%,transparent);
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--brand) 9%,transparent);
+  background:var(--card)}
+textarea{flex:1;resize:none;border:0;background:transparent;color:var(--text);
+  padding:8px 0;font:14.5px/1.6 inherit;max-height:132px;min-height:26px;
+  outline:none;display:block}
+textarea::placeholder{color:#8B8C82}
+#send{flex:none;width:34px;height:34px;border-radius:50%;cursor:pointer;
+  border:0;background:var(--brand);color:#fff;display:grid;place-items:center;
+  transition:transform .15s,opacity .15s;margin-bottom:1px}
+#send svg{width:15px;height:15px}
+#send:hover:not(:disabled){transform:scale(1.06)}
+#send:active:not(:disabled){transform:scale(.94)}
+#send:disabled{opacity:.28;cursor:not-allowed}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;padding:0 3px}
+.chip{font:12.5px/1 inherit;padding:6px 11px;border-radius:20px;cursor:pointer;
+  background:transparent;border:1px solid var(--line-strong);color:var(--muted);
+  transition:all .15s;white-space:nowrap}
+.chip:hover{border-color:color-mix(in srgb,var(--brand) 50%,transparent);
+  color:var(--brand);background:var(--brand-soft)}
+.chip:active{transform:scale(.97)}
+.foot{display:flex;align-items:center;gap:10px;margin-top:9px;padding:0 3px;
+  font-size:11px;color:var(--faint)}
+.foot label{display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--muted)}
+.foot input{accent-color:var(--brand);margin:0;width:12px;height:12px}
+.foot a{color:var(--faint);text-decoration:none}
+.foot a:hover{color:var(--brand)}
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="app">
   <header>
-    <div>
-      <h1>甘蓝视觉 Agent</h1>
-      <p class="sub">规则优先，判断不了才升级到模型 · 每个答案都标出是谁给的</p>
-    </div>
+    <div class="brand"><span class="logo"></span>甘蓝视觉 Agent</div>
     <div class="spacer"></div>
-    <button class="chip" id="btnSample">载入示例图</button>
-    <span class="dot" id="statusDot"></span>
-    <span class="hint" id="statusText">连接中…</span>
+    <div class="stats" id="stats"></div>
+    <div class="state"><span class="dot" id="dot"></span><span id="st">连接中</span></div>
   </header>
 
   <main>
-    <section class="card" id="left">
-      <div id="stage" title="点击选择图片，或拖拽 / Ctrl+V 粘贴">
+    <!-- 左：图像 -->
+    <section class="left">
+      <div class="stage" id="stage" title="点击选择图片，或拖拽 / Ctrl+V 粘贴">
         <canvas id="cv"></canvas>
         <div class="empty" id="empty">
-          <b>把航拍图拖到这里</b>
-          也可以点击选择、<kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴<br>
-          上传后就能直接提问，比如「这张图有多少株」
+          <div class="dropzone">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="3"/>
+              <circle cx="8.5" cy="8.5" r="1.6"/>
+              <path d="M21 15.5 16.5 11 6 21"/>
+            </svg>
+            <b>拖入航拍图</b>
+            <span>点击选择 · <kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴</span>
+          </div>
         </div>
+        <div class="stage-meta">jpg / png / webp · 单图 ≤16MB · 推理约 0.1s</div>
       </div>
-      <div id="readout">
-        <div class="kv"><span>株数</span><span class="big" id="rCount">—</span></div>
-        <div class="kv"><span>密度</span><span id="rDensity">—</span></div>
-        <div class="kv"><span>置信度中位</span><span id="rMedian">—</span></div>
-        <div class="kv"><span>image_id</span><span id="rId">—</span></div>
+      <div class="metrics" id="metrics">
+        <div class="m"><div class="k">株数</div><div class="v" id="mCount">—</div></div>
+        <div class="m"><div class="k">密度</div><div class="v" id="mDensity">—</div></div>
+        <div class="m"><div class="k">耗时</div><div class="v" id="mMs">—</div></div>
+        <div class="m"><div class="k">image_id</div><div class="v sm" id="mId">—</div></div>
       </div>
     </section>
 
-    <section class="card" id="chat">
-      <div id="log">
-        <div class="msg bot">
-          <div class="ans">先拖一张航拍图进来，然后随便问：
-· 这张图有多少株
-· 密度怎么样
-· 有多少低置信框
-· 再复核一下，阈值降到 0.1
-· 为什么阈值是 0.25
-
-也可以只问文档，不带图。</div>
+    <!-- 右：对话 -->
+    <section class="chat">
+      <div class="log" id="log">
+        <div class="turn hero-turn" id="hero">
+          <div class="hero">
+            <h2>先放一张图</h2>
+            <p>左边拖入航拍图或点「示例图」。然后这些问题可以直接点：</p>
+            <div class="hero-list">
+              <button class="hero-q" data-q="这张图有多少株？">
+                <span>这张图有多少株</span><span class="rt">规则 · 0.1s</span></button>
+              <button class="hero-q" data-q="再复核一下，阈值降到 0.1">
+                <span>再复核一下，阈值降到 0.1</span><span class="rt">规则 · 0.1s</span></button>
+              <button class="hero-q" data-q="为什么默认阈值是 0.25？">
+                <span>为什么默认阈值是 0.25</span><span class="rt">规则 · 查文档</span></button>
+              <button class="hero-q" data-q="这张图里的甘蓝分布得均匀吗，有没有哪块是空着的">
+                <span>分布得均匀吗，有没有空着的</span><span class="rt">Agent · 十几秒</span></button>
+            </div>
+            <div class="hero-foot">同一个问题也可以勾选「强制走 Agent」再问一次，对比两条路径。</div>
+          </div>
         </div>
       </div>
-      <div id="composer">
-        <div id="chips">
+
+      <div class="composer">
+        <div class="box">
+          <textarea id="q" rows="1" placeholder="问点什么…"></textarea>
+          <button id="send" title="发送（Enter）" aria-label="发送">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 19V5M5 12l7-7 7 7"/>
+            </svg>
+          </button>
+        </div>
+        <div class="chips">
           <button class="chip" data-q="这张图有多少株？">多少株</button>
           <button class="chip" data-q="密度怎么样？">密度</button>
           <button class="chip" data-q="有多少低置信框？">低置信框</button>
           <button class="chip" data-q="再复核一下，阈值降到 0.1">复核</button>
           <button class="chip" data-q="为什么默认阈值是 0.25？">阈值依据</button>
           <button class="chip" data-q="这块地每亩多少株？">每亩株数</button>
+          <button class="chip" id="sampleChip">示例图</button>
         </div>
-        <div id="row">
-          <textarea id="q" rows="1" placeholder="问点什么，Enter 发送，Shift+Enter 换行"></textarea>
-          <button id="send">发送</button>
-        </div>
-        <div id="foot">
-          <label><input type="checkbox" id="forceAgent"> 强制走 Agent（用于对比同一问题的两条路径）</label>
+        <div class="foot">
+          <label><input type="checkbox" id="forceAgent">强制走 Agent（对比用）</label>
           <div class="spacer"></div>
-          <a href="/docs" target="_blank" rel="noreferrer">/docs</a>
-          <a href="/api/health" target="_blank" rel="noreferrer">/api/health</a>
+          <a href="/docs" target="_blank" rel="noreferrer">API</a>
+          <a href="/api/health" target="_blank" rel="noreferrer">健康</a>
         </div>
       </div>
     </section>
@@ -202,15 +347,14 @@ input[type=checkbox]{accent-color:var(--brand);margin:0}
   var stage=$('stage'), cv=$('cv'), empty=$('empty'), fileInput=$('file');
   var log=$('log'), qBox=$('q'), send=$('send'), forceAgent=$('forceAgent');
 
-  var state = { imageId:null, img:null, busy:false, file:null };
+  var state = { imageId:null, img:null, busy:false };
+  var tally = { asks:0, noLlm:0 };
+
   var session = localStorage.getItem('cvagent.session');
   if(!session){
     session = 'web-' + Math.random().toString(36).slice(2,10);
     localStorage.setItem('cvagent.session', session);
   }
-
-  // 阈值口径说明：这个页面上出现的所有数字都来自工具返回，
-  // 前端不算任何统计量，避免和模型一样"估算"。
 
   function el(tag, cls, txt){
     var e = document.createElement(tag);
@@ -220,28 +364,61 @@ input[type=checkbox]{accent-color:var(--brand);margin:0}
   }
   function scrollDown(){ log.scrollTop = log.scrollHeight; }
 
+  function setState(text, kind){
+    $('st').textContent = text;
+    $('dot').className = 'dot' + (kind ? ' ' + kind : '');
+  }
+
+  function renderStats(){
+    if(!tally.asks){ $('stats').textContent = ''; return; }
+    $('stats').innerHTML = '';
+    $('stats').appendChild(el('span', null, tally.asks + ' 次提问'));
+    $('stats').appendChild(el('span', 'sep', '·'));
+    var b = el('b', null, String(tally.noLlm));
+    $('stats').appendChild(b);
+    $('stats').appendChild(el('span', null, ' 次没调模型'));
+  }
+
+  var DENSITY={sparse:'稀疏',moderate:'适中',dense:'密集',very_dense:'极密'};
+  var metaTip=null;
+
   /* ── 图像 ── */
-  function drawBoxes(detections){
+  function paint(){
     if(!state.img) return;
     var im = state.img;
     cv.width = im.naturalWidth; cv.height = im.naturalHeight;
-    var ctx = cv.getContext('2d');
-    ctx.drawImage(im, 0, 0);
-    if(!detections || !detections.length) return;
-    var lw = Math.max(2, Math.round(im.naturalWidth / 480));
-    detections.forEach(function(d){
-      var b = d.box;
-      ctx.strokeStyle = '#0AB861';
-      ctx.lineWidth = lw;
-      ctx.strokeRect(b[0], b[1], b[2]-b[0], b[3]-b[1]);
-      ctx.fillStyle = 'rgba(10,184,97,.10)';
-      ctx.fillRect(b[0], b[1], b[2]-b[0], b[3]-b[1]);
-    });
+    cv.getContext('2d').drawImage(im, 0, 0);
     cv.style.display = 'block';
     empty.style.display = 'none';
+    if(!metaTip) metaTip = document.querySelector('.stage-meta');
+    if(metaTip) metaTip.style.display = 'none';  // 有图了就别再压提示条
   }
 
-  function showImage(file){
+  function drawBoxes(boxes){
+    if(!state.img) return;
+    paint();
+    if(!boxes || !boxes.length) return;
+    var ctx = cv.getContext('2d');
+    var scale = state.img.naturalWidth / 600;
+    var lw = Math.max(1.6, Math.min(3.4, scale));
+    // 低置信框单独上色：答案里会写「其中 3 个低置信」，图上得能看见是哪 3 个，
+    // 否则这句话只是文字，用户无从核对。
+    boxes.forEach(function(b){
+      var low = b[4] < 0.5;
+      var rgb = low ? '232,162,74' : '50,240,140';
+      ctx.strokeStyle = 'rgba(' + rgb + ',.95)';
+      ctx.fillStyle = 'rgba(' + rgb + ',.10)';
+      ctx.shadowColor = 'rgba(' + rgb + ',.45)';
+      ctx.shadowBlur = lw * 2.2;
+      ctx.lineWidth = low ? lw * 1.25 : lw;
+      var w = b[2]-b[0], h = b[3]-b[1];
+      ctx.fillRect(b[0], b[1], w, h);
+      ctx.strokeRect(b[0], b[1], w, h);
+    });
+    ctx.shadowBlur = 0;
+  }
+
+  function loadImage(file){
     return new Promise(function(resolve, reject){
       var img = new Image();
       img.onload = function(){ state.img = img; resolve(img); };
@@ -252,14 +429,12 @@ input[type=checkbox]{accent-color:var(--brand);margin:0}
 
   async function upload(file){
     if(!file) return;
-    if(!/^image\//.test(file.type)){ botNote('只支持图片文件', true); return; }
-    if(file.size > 16*1024*1024){ botNote('文件超过 16MB', true); return; }
+    if(!/^image\//.test(file.type)){ note('只支持图片文件', true); return; }
+    if(file.size > 16*1024*1024){ note('文件超过 16MB', true); return; }
     try{
-      await showImage(file);
-      cv.style.display='block'; empty.style.display='none';
-      cv.width = state.img.naturalWidth; cv.height = state.img.naturalHeight;
-      cv.getContext('2d').drawImage(state.img, 0, 0);
-      setStatus('上传中…');
+      await loadImage(file);
+      paint();
+      setState('上传中', 'busy');
       var fd = new FormData();
       fd.append('file', file, file.name || 'upload.jpg');
       var r = await fetch('/api/upload', {method:'POST', body:fd});
@@ -269,130 +444,133 @@ input[type=checkbox]{accent-color:var(--brand);margin:0}
       }
       var res = await r.json();
       state.imageId = res.image_id;
-      $('rId').textContent = res.image_id;
-      $('rDensity').textContent = '—';
-      $('rCount').textContent = '—';
-      $('rMedian').textContent = '—';
-      $('readout').classList.add('on');
-      setStatus('图片已就绪 ' + res.width + '×' + res.height);
-      botNote('图片已就绪。现在可以问「这张图有多少株」。');
+      $('mId').textContent = res.image_id;
+      $('metrics').classList.add('on');
+      setState('就绪 · ' + res.width + '×' + res.height, 'ok');
     }catch(err){
-      setStatus('上传失败：' + err.message, true);
-      botNote('图片处理失败：' + err.message, true);
+      setState('失败', 'bad');
+      note('图片处理失败：' + err.message, true);
     }
   }
 
-  /* ── 状态 ── */
-  function setStatus(text, isErr){
-    $('statusText').textContent = text;
-    $('statusDot').className = 'dot ' + (isErr ? 'bad' : 'ok');
-  }
-  function botNote(text, isErr){
-    var m = el('div', 'msg bot');
-    var a = el('div', 'ans', text);
-    if(isErr) a.style.color = 'var(--danger)';
-    m.appendChild(a);
-    log.appendChild(m); scrollDown();
+  /* ── 消息 ── */
+  function note(text, isErr){
+    var t = el('div', 'turn');
+    var a = el('div', 'a');
+    var x = el('div', 'text', text);
+    if(isErr){ x.style.color = 'var(--danger)'; }
+    a.appendChild(x); t.appendChild(a); log.appendChild(t); scrollDown();
   }
 
-  /* ── 对话 ── */
-  function addUser(text){
-    var m = el('div', 'msg user');
-    m.textContent = text;
-    log.appendChild(m); scrollDown();
-    return m;
+  function addQuestion(text){
+    var t = el('div', 'turn');
+    t.appendChild(el('div', 'q', text));
+    log.appendChild(t); scrollDown();
+    return t;
   }
 
-  function newBot(){
-    var m = el('div', 'msg bot');
-    var ans = el('div', 'ans pending');
+  function addAnswer(){
+    var t = el('div', 'turn');
+    var a = el('div', 'a');
+    var text = el('div', 'text typing');
     var meta = el('div', 'meta');
-    var traceBox = el('details');
-    var summary = el('summary', null, '决策链');
+    var reason = el('div', 'reason');
+    var box = el('details');
+    var sum = el('summary');
+    var cvIcon = el('span', 'cv', '▶');
+    sum.appendChild(cvIcon);
+    sum.appendChild(el('span', null, '决策链'));
     var trace = el('ul', 'trace');
-    traceBox.style.display = 'none';
-    traceBox.appendChild(summary); traceBox.appendChild(trace);
-    m.appendChild(ans); m.appendChild(meta); m.appendChild(traceBox);
-    log.appendChild(m); scrollDown();
-    return { root:m, ans:ans, meta:meta, traceBox:traceBox, trace:trace, nSteps:0 };
+    box.appendChild(sum); box.appendChild(trace);
+    box.style.display = 'none';
+    reason.style.display = 'none';
+    a.appendChild(text); a.appendChild(reason); a.appendChild(meta); a.appendChild(box);
+    t.appendChild(a); log.appendChild(t); scrollDown();
+    return { root:t, text:text, meta:meta, reason:reason, box:box, trace:trace };
   }
 
-  function addStep(bubble, ev){
-    bubble.traceBox.style.display = 'block';
-    var li = el('li', ev.ok ? '' : 'bad');
-    li.appendChild(el('span', 'n', String(ev.index + 1)));
-    li.appendChild(el('span', 't', ev.tool));
-    li.appendChild(el('span', 'o', ev.brief + '  ' + Math.round(ev.elapsed_ms) + 'ms'));
-    bubble.trace.appendChild(li);
-    bubble.nSteps++;
-    scrollDown();
+  function stepRow(ev){
+    var li = el('li', ev.ok ? 'ok' : 'bad');
+    var r1 = el('div', 'row1');
+    r1.appendChild(el('span', 'name', ev.tool));
+    r1.appendChild(el('span', 'ms', Math.round(ev.elapsed_ms) + ' ms'));
+    li.appendChild(r1);
+    li.appendChild(el('div', 'obs', ev.brief));
+    return li;
   }
 
-  function fillMeta(bubble, res){
-    bubble.meta.innerHTML = '';
+  function fillMeta(b, res){
+    b.meta.innerHTML = '';
     var isRule = res.route === 'pipeline';
-    var b = el('span', 'badge ' + (isRule ? 'rule' : 'agent'), isRule ? '规则' : 'Agent');
-    bubble.meta.appendChild(b);
+    var tag = el('span', 'tag ' + (isRule ? 'rule' : 'agent'));
+    tag.appendChild(el('i'));
+    tag.appendChild(el('span', null, isRule ? '规则' : 'Agent'));
+    b.meta.appendChild(tag);
 
-    var parts = [];
-    if(isRule) parts.push('0 次 LLM');
-    else parts.push(res.model);
-    parts.push(res.elapsed_s + 's');
-    parts.push(res.stats.n_tool_calls + ' 次工具');
-    if(!isRule && res.stats.prompt_tokens) {
-      parts.push(res.stats.prompt_tokens + ' in / ' + res.stats.completion_tokens + ' out');
+    var bits = [];
+    bits.push(isRule ? '未调用模型' : res.model);
+    bits.push(res.elapsed_s + 's');
+    bits.push(res.stats.n_tool_calls + ' 次工具');
+    if(isRule){ bits.push('0 token'); }
+    else if(res.stats.prompt_tokens){
+      bits.push(res.stats.prompt_tokens + ' in / ' + res.stats.completion_tokens + ' out');
     }
-    if(res.stopped_reason === 'max_steps') parts.push('达到步数上限');
-    bubble.meta.appendChild(el('span', null, parts.join(' · ')));
+    if(res.stopped_reason === 'max_steps') bits.push('达到步数上限');
+    b.meta.appendChild(el('span', null, bits.join('  ·  ')));
 
     if(res.escalate_reason){
-      var n = el('div', 'note warn', '升级原因：' + res.escalate_reason);
-      bubble.meta.parentNode.insertBefore(n, bubble.traceBox);
+      b.reason.style.display = 'flex';
+      b.reason.textContent = '升级原因：' + res.escalate_reason;
     }
 
-    // 用最后一次检测观测刷新左下角读数
+    tally.asks++;
+    if(isRule) tally.noLlm++;
+    renderStats();
+
+    // 左下角读数：只认最后一次带计数的观测
     var last = null;
     res.steps.forEach(function(s){
       if(s.ok && (s.observation.count != null || s.observation.total_count != null)) last = s;
     });
     if(last){
       var o = last.observation;
-      $('rCount').textContent = (o.count != null ? o.count : o.total_count);
-      if(o.density) $('rDensity').textContent = o.density;
-      if(o.score_stats && o.score_stats.median != null){
-        $('rMedian').textContent = o.score_stats.median;
-      } else if(o.conf_threshold != null){
-        $('rMedian').textContent = 'conf ' + o.conf_threshold;
-      }
-      if(o.image_id) $('rId').textContent = o.image_id;
+      $('mCount').textContent = (o.count != null ? o.count : o.total_count);
+      if(o.density) $('mDensity').textContent = DENSITY[o.density] || o.density;
+      if(o.image_id) $('mId').textContent = o.image_id;
     }
+    $('mMs').textContent = res.elapsed_s + ' s';
+    drawBoxes(res.boxes);
   }
 
   function setBusy(v){
     state.busy = v;
     send.disabled = v;
-    send.textContent = v ? '…' : '发送';
+    if(!v && $('st').textContent.indexOf('失败') !== 0) setState('就绪', 'ok');
   }
 
   async function ask(text){
-    if(state.busy || !text.trim()) return;
+    text = (text || '').trim();
+    if(!text || state.busy) return;
     setBusy(true);
-    addUser(text);
-    var bubble = newBot();
-
-    var payload = {
-      question: text,
-      image_id: state.imageId,
-      session: session,
-      mode: forceAgent.checked ? 'agent' : 'auto'
-    };
+    setState('处理中', 'busy');
+    var hero = $('hero');
+    if(hero) hero.remove();
+    addQuestion(text);
+    var b = addAnswer();
 
     var acc = '';
+    var gotDelta = false;
+
     try{
       var r = await fetch('/api/ask/stream', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          question: text,
+          image_id: state.imageId,
+          session: session,
+          mode: forceAgent.checked ? 'agent' : 'auto'
+        })
       });
       if(!r.ok || !r.body){
         var e = await r.json().catch(function(){ return {}; });
@@ -416,35 +594,42 @@ input[type=checkbox]{accent-color:var(--brand);margin:0}
           var ev = JSON.parse(line.slice(6));
 
           if(ev.type === 'route'){
-            // 原因只写在过渡文案里，不单独插节点：done 时 fillMeta 还会
-            // 正式渲染一条，两处都插就会重复。
-            bubble.ans.classList.add('pending');
-            bubble.ans.textContent = '规则层判断不了（' + ev.reason + '），交给模型…';
+            b.text.textContent = '规则层判断不了（' + ev.reason + '），交给模型…';
           } else if(ev.type === 'step'){
-            bubble.ans.textContent = '正在调用 ' + ev.tool + '…';
-            addStep(bubble, ev);
+            b.box.style.display = 'block';
+            b.trace.appendChild(stepRow(ev));
+            if(!gotDelta) b.text.textContent = '正在调用 ' + ev.tool + '…';
+            scrollDown();
           } else if(ev.type === 'delta'){
+            gotDelta = true;
             acc += ev.text;
-            bubble.ans.textContent = acc;
+            b.text.textContent = acc;
             scrollDown();
           } else if(ev.type === 'done'){
-            bubble.ans.classList.remove('pending');
-            bubble.ans.textContent = ev.answer || '（没有给出结论）';
-            fillMeta(bubble, ev);
-            if(!ev.steps.length) bubble.traceBox.style.display = 'none';
-            setStatus('完成 · ' + ev.elapsed_s + 's · ' + (ev.route === 'pipeline' ? '规则' : 'Agent'));
+            b.text.classList.remove('typing');
+            b.text.classList.add('lead');
+            b.text.textContent = ev.answer || '（没有给出结论）';
+            fillMeta(b, ev);
+            if(!ev.steps.length) b.box.style.display = 'none';
+            setState(ev.route === 'pipeline' ? '规则直接作答' : '模型作答', 'ok');
           } else if(ev.type === 'error'){
-            throw new Error(ev.message);
+            var err = new Error(ev.message);
+            err.status = ev.status;
+            throw err;
           }
         }
       }
     }catch(err){
-      bubble.ans.classList.remove('pending');
-      bubble.ans.textContent = '出错了：' + err.message;
-      bubble.ans.style.color = 'var(--danger)';
-      var b = el('span', 'badge err', '失败');
-      bubble.meta.appendChild(b);
-      setStatus('请求失败', true);
+      b.text.classList.remove('typing');
+      b.text.textContent = err.status === 502
+        ? '模型侧不可用：' + err.message + '\n\n规则路径不受影响，上面这几个问题仍然可以问。'
+        : '出错了：' + err.message;
+      b.text.style.color = 'var(--danger)';
+      var t = el('span', 'tag bad');
+      t.appendChild(el('i'));
+      t.appendChild(el('span', null, err.status === 502 ? '模型不可用' : '失败'));
+      b.meta.appendChild(t);
+      setState(err.status === 502 ? '模型侧不可用' : '失败', 'bad');
     }finally{
       setBusy(false);
       qBox.focus();
@@ -467,16 +652,17 @@ input[type=checkbox]{accent-color:var(--brand);margin:0}
     if(item) upload(item.getAsFile());
   });
 
-  $('btnSample').addEventListener('click', async function(){
+  async function loadSample(){
     try{
       var r = await fetch('/api/sample');
       if(!r.ok) throw new Error('示例图不可用');
       var blob = await r.blob();
       await upload(new File([blob], 'sample.jpg', {type:'image/jpeg'}));
-    }catch(err){ setStatus('示例图加载失败：' + err.message, true); }
-  });
+    }catch(err){ setState('示例图加载失败', 'bad'); }
+  }
+  $('sampleChip').addEventListener('click', loadSample);
 
-  Array.prototype.forEach.call(document.querySelectorAll('.chip[data-q]'), function(c){
+  Array.prototype.forEach.call(document.querySelectorAll('[data-q]'), function(c){
     c.addEventListener('click', function(){ ask(c.getAttribute('data-q')); });
   });
 
@@ -492,22 +678,22 @@ input[type=checkbox]{accent-color:var(--brand);margin:0}
   });
   qBox.addEventListener('input', function(){
     qBox.style.height = 'auto';
-    qBox.style.height = Math.min(qBox.scrollHeight, 120) + 'px';
+    qBox.style.height = Math.min(qBox.scrollHeight, 132) + 'px';
   });
 
-  /* ── 启动自检 ── */
+  /* ── 启动 ── */
   (async function(){
+    renderStats();
     try{
-      var r = await fetch('/api/health');
-      var h = await r.json();
+      var h = await (await fetch('/api/health')).json();
       if(h.ready){
-        setStatus('模型就绪 · ' + h.device + ' · 加载 ' + (h.warmup_ms/1000).toFixed(1) + 's');
+        setState(h.device + ' · 就绪', 'ok');
       }else{
-        setStatus('模型不可用：' + (h.error || '未知原因'), true);
-        botNote('服务在跑，但检测模型没加载起来：' + (h.error || '未知原因') +
-                '。文档类问题仍然可以问。', true);
+        setState('模型未就绪', 'bad');
+        note('服务在跑，但检测模型没加载起来：' + (h.error || '未知原因') +
+             '。不带图的文档类问题仍然可以问。', true);
       }
-    }catch(e){ setStatus('服务未响应', true); }
+    }catch(e){ setState('服务未响应', 'bad'); }
   })();
 })();
 </script>
