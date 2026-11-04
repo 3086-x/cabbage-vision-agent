@@ -8,10 +8,11 @@ CLI 只能证明「能力存在」，不能证明「产品存在」。`cvagent a
 ## 三个必须在这一层解决的问题
 
 **1. 图片路径不能由前端决定。**
-`pipeline.extract()` 用正则从问题文本里抽绝对路径，抽到就交给 `detect_cabbage`
-读盘。如果前端能把任意路径写进问题，这个功能就等于一次任意文件读取——而且
-错误信息里还会带出文件是否存在。所以上传之后只下发 `image_id`，真实路径留在
-服务端的映射表里，问题文本里的路径由服务端自己拼。
+`pipeline.extract()` 从问题文本里抽路径（绝对路径照收；相对路径则要真的存在
+于磁盘才算），抽到就交给 `detect_cabbage` 读盘。如果前端能把任意路径写进问题，
+这个功能就等于一次任意文件读取——而且错误信息里还会带出文件是否存在。所以上传
+之后只下发 `image_id`，真实路径留在服务端的映射表里，问题文本里的路径由服务端
+自己拼，用户写的那部分先经 `strip_paths` 抹掉。
 
 **2. 分层必须在界面上可见。**
 这个项目的主张是「规则能兜住的不要调 LLM」。如果页面只显示一个答案，用户
@@ -38,7 +39,6 @@ import hashlib
 import json
 import os
 import queue
-import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -49,6 +49,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from .config import ROOT
+from .pipeline import strip_paths
 
 # ── 可调项 ──────────────────────────────────────────────────────────────
 UPLOAD_DIR = Path(os.getenv("CVAGENT_UPLOADS", ROOT / "runs" / "uploads"))
@@ -67,9 +68,6 @@ _MAGIC: tuple[tuple[bytes, str], ...] = (
     (b"MM\x00*", ".tif"),
 )
 
-# 与 pipeline 抽路径的正则同一份语义：Windows 盘符绝对路径，或 POSIX 绝对路径。
-_ABS_PATH = re.compile(r"(?:[A-Za-z]:[\\/]|/)[^\s，。；、）)\]】\"']+")
-
 
 def _sniff_ext(data: bytes) -> str | None:
     for magic, ext in _MAGIC:
@@ -81,11 +79,16 @@ def _sniff_ext(data: bytes) -> str | None:
 
 
 def _scrub_paths(text: str) -> str:
-    """把用户输入里的绝对路径抹掉，只留服务端注入的那一条。
+    """把用户输入里的路径抹掉，只留服务端注入的那一条。
 
     注意这里抹的是**用户写的**文本，抹完才拼接服务端路径，顺序不能反。
+
+    真正干活的是 `pipeline.strip_paths()`：路径"长什么样"只能有一份定义。
+    这一层自己写正则的后果实测过——pipeline 加了相对路径之后，这里的正则还是
+    只认绝对路径，于是一句 `runs/uploads/x.jpg 里有多少株` 就能让服务端去读
+    用户指定的文件。判据合并之后这类偏差不会再出现。
     """
-    return _ABS_PATH.sub("[路径已移除]", text)
+    return strip_paths(text)
 
 
 # ── 上传表 ──────────────────────────────────────────────────────────────

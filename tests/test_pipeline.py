@@ -112,6 +112,40 @@ class TestSlots(unittest.TestCase):
         s = extract(r"图片：D:\a\b.jpg，谢谢")
         self.assertEqual(s.files, [r"D:\a\b.jpg"])
 
+    def test_relative_image_path_not_truncated(self):
+        # 回归：绝对路径正则会从 `/a.png` 处把 `sub/a.png` 截走，只剩 `/a.png`，
+        # 于是报「文件不存在：/a.png」——路径看着像对的，错误信息完全指错方向。
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "sub").mkdir()
+            _png(root / "sub", "a.png")
+            s = extract("数一下 sub/a.png 有多少株", base=root)
+        self.assertEqual(s.files, ["sub/a.png"])
+        self.assertEqual(s.dirs, [])
+
+    def test_relative_dir_must_exist_on_disk(self):
+        # 相对路径只有斜杠一个信号，`test/images` 与 `株/平米` 文本上同构，
+        # 能区分它们的只有文件系统。所以这条规则的口径是「存在才算」。
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "test" / "images").mkdir(parents=True)
+            ok = extract("统计 test/images 目录里有多少株", base=root)
+            gone = extract("统计 no/such 目录里有多少株", base=root)
+        self.assertEqual(ok.dirs, ["test/images"])
+        self.assertEqual((gone.files, gone.dirs), ([], []))
+
+    def test_ratio_is_not_a_path(self):
+        # "株/平米"、"株/亩" 含斜杠但不是路径。曾经被抽成目录 `/平米`，
+        # 一旦句子里再出现「目录/这批」，batch 规则就会拿着它去扫盘。
+        s = extract("密度 株/平米 是多少")
+        self.assertEqual((s.files, s.dirs), ([], []))
+
+    def test_missing_absolute_path_still_reaches_tools(self):
+        # 不存在的绝对路径要原样交下去，让工具层报具体的「文件不存在：…」。
+        # 抽取层吞掉它，用户就只剩一句「没找到图片路径」，不知道错在哪。
+        s = extract(r"数一下 D:\data\typo.jpg 有多少株")
+        self.assertEqual(s.files, [r"D:\data\typo.jpg"])
+
 
 class TestRouting(unittest.TestCase):
     """路由的回归测试。每条都对应一个真实踩过的坑。"""

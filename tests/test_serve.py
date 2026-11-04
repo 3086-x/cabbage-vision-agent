@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import io
+import os
 import sys
 import tempfile
 import unittest
@@ -40,6 +41,28 @@ class PathIsolationTest(unittest.TestCase):
         self.assertNotIn("/etc/passwd", s)
         self.assertNotIn("C:\\Windows", s)
         self.assertIn("有多少株", s)  # 只抹路径，不动问题本身
+
+    def test_scrub_removes_relative_paths_too(self):
+        # 回归：抽取层开始认相对路径之后，抹除层必须同步跟上。否则用户把
+        # `sub/a.jpg` 写进问题，服务端就会去读磁盘上那个真实文件——绝对路径
+        # 被挡住了，相对路径绕过去了，等于没挡。
+        old = os.getcwd()
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "sub").mkdir()
+            (Path(d) / "sub" / "a.jpg").write_bytes(b"x")
+            os.chdir(d)
+            try:
+                out = serve._scrub_paths("数一下 sub/a.jpg 有多少株")
+            finally:
+                os.chdir(old)
+        self.assertNotIn("a.jpg", out)
+        self.assertIn("有多少株", out)
+
+    def test_scrub_keeps_unit_ratios(self):
+        # `株/平米` 含斜杠但不是路径。为了挡路径把正常问题抹成乱码，
+        # 就是拿可用性换安全——两边都要。
+        out = serve._scrub_paths("密度 株/平米 是多少")
+        self.assertEqual(out, "密度 株/平米 是多少")
 
     def test_user_path_is_dropped_but_server_path_kept(self):
         with tempfile.TemporaryDirectory() as d:

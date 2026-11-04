@@ -35,6 +35,7 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from .agent.loop import Step, Trajectory
 from .config import DEFAULT_CONF, MIN_CONF
@@ -43,7 +44,23 @@ from .tools.registry import ToolRegistry
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 
 # Windows 绝对路径，或 POSIX 绝对路径；到空白/中文标点为止
-_PATH_RE = re.compile(r"(?:[A-Za-z]:[\\/]|/)[^\s，。；、）)\]】\"']+")
+_ABS_PATH_RE = re.compile(r"(?:[A-Za-z]:[\\/]|/)[^\s，。；、）)\]】\"']+")
+
+# 相对路径：至少一段 `a/b`，可选 `./` `../` 前缀。
+# 不能只凭"含斜杠"就认路径——`株/亩`、`株/平米` 这类单位写法同样含斜杠，
+# 而且都长在农业问题里。唯一的区分证据是文件到底在不在磁盘上（见 extract）。
+_REL_PATH_RE = re.compile(
+    r"(?<![\w:/\\-])((?:\.{1,2}[\\/])?(?:[\w.\-]+[\\/])+[\w.\-]*[\\/]?)"
+)
+
+# 路径里合法的 ASCII 尾字符。紧贴绝对路径之前如果出现它们，说明这次匹配
+# 只是长路径的尾巴：`examples/sample.jpg` 会在 `s` 之后被绝对路径正则从
+# `/sample.jpg` 处截走，然后报「文件不存在：/sample.jpg」。
+_TAIL_CHARS = re.compile(r"[A-Za-z0-9_.\-]$")
+
+# 中文紧贴斜杠时，斜杠后面多半不是路径而是单位（`株/平米`）。只在"一个都
+# 不存在"的兜底分支里用：这时宁可说没找到路径，也别把 `/平米` 当目录。
+_CJK_CHAR = re.compile(r"[\u4e00-\u9fff]$")
 _CONF_RE = re.compile(r"(?:conf\s*[=＝:：]\s*|阈值(?:降到|调到|设为|改成|改为)?\s*)(\d+(?:\.\d+)?)", re.I)
 _LIMIT_RE = re.compile(r"(?:前|先跑前|只跑前)\s*(\d+)\s*张")
 _IMGID_RE = re.compile(r"image_id\s*(?:用|是|为|=|＝)?\s*([0-9a-f]{12})", re.I)
@@ -62,15 +79,145 @@ class Slots:
     image_id: str | None = None
 
 
-def extract(question: str) -> Slots:
+def _exists(text: str, root: Path) -> bool:
+    p = Path(text)
+    if not p.is_absolute():
+        p = root / p
+    try:
+        return p.exists()
+    except OSError:  # 非法字符、盘符不存在、权限不足：一律当成"不存在"
+        return False
+
+
+@dataclass(frozen=True)
+class _Span:
+    """文本里一段"可能是路径"的片段。"""
+
+    start: int
+    end: int
+    text: str
+    exists: bool
+    absolute: bool
+    glued: bool  # 紧贴中文：`株/平米` 里的 `/平米` 更像单位，不像路径
+
+
+def _path_spans(question: str, root: Path) -> list[_Span]:
+    """扫出所有可能被当成路径的片段，并标出它在磁盘上是否存在。
+
+    分两遍扫是为了两者互不吃掉对方：
+
+        绝对路径先扫，但紧贴 ASCII 尾字符的匹配要丢掉——`examples/sample.jpg`
+        会被从 `/sample.jpg` 处截断，那半个路径指的方向完全是错的；
+        相对路径再扫，落在绝对区间里的不算——否则 `D:/x/a.jpg` 会被认两遍。
+
+    存在性只在这里查一次：抽取和抹除都用同一份结果，口径不可能走偏。
+    """
+    spans: list[_Span] = []
+    abs_ranges: list[tuple[int, int]] = []
+    for m in _ABS_PATH_RE.finditer(question):
+        abs_ranges.append(m.span())
+        if m.start() and _TAIL_CHARS.search(question[m.start() - 1]):
+            continue
+        text = m.group(0).rstrip(".,;:，。；：")
+        if text:
+            spans.append(_Span(m.start(), m.start() + len(text), text,
+                               _exists(text, root), True, _glued(question, m.start())))
+    for m in _REL_PATH_RE.finditer(question):
+        if any(a <= m.start() < b for a, b in abs_ranges):
+            continue
+        text = m.group(1).rstrip(".,;:，。；：")
+        if text:
+            spans.append(_Span(m.start(), m.start() + len(text), text,
+                               _exists(text, root), False, _glued(question, m.start())))
+    return spans
+
+
+def _glued(question: str, start: int) -> bool:
+    return bool(start and _CJK_CHAR.search(question[start - 1]))
+
+
+def _slot(s: Slots, text: str) -> None:
+    if text.lower().rstrip("\\/").endswith(tuple(IMG_EXTS)):
+        s.files.append(text)
+    else:
+        s.dirs.append(text)
+
+
+def extract(question: str, base: str | Path | None = None) -> Slots:
+    """从问题里抽槽位。抽不到就是 None，不猜。
+
+    `base` 是相对路径的解析基准，默认当前工作目录。
+
+    相对路径必须先过「磁盘上存在」这一关，原因不是洁癖：只有斜杠一个信号时
+    `sub/a.jpg` 和 `株/平米` 在文本上一模一样，能区分它们的只有文件系统。
+    原来只认绝对路径，`examples/sample.jpg` 会被截成 `/sample.jpg`、`dataset/test`
+    被截成 `/test`——路径看着像对的，所以失败信息（文件不存在）完全指错方向。
+    """
+    root = Path(base) if base is not None else Path.cwd()
     s = Slots()
-    for raw in _PATH_RE.findall(question):
-        p = raw.rstrip(".,;:，。；：")
-        if p.lower().endswith(tuple(IMG_EXTS)):
-            s.files.append(p)
-        else:
-            s.dirs.append(p)
+    spans = _path_spans(question, root)
+
+    hits = [(sp.start, sp.text) for sp in spans if sp.exists]
+    if not hits:
+        # 一个都不存在：把绝对路径原样交出去，让工具层报「文件不存在：…」——
+        # 比一句「没找到图片路径」更有用，用户能立刻看出错在哪一段。
+        # 但被中文紧贴的不给：`株/平米` 里的 `/平米` 不是路径，是单位。
+        for sp in spans:
+            if not sp.absolute:
+                continue  # 不存在的相对路径什么都不是，交下去只会变成噪音
+            if sp.glued:
+                continue
+            hits.append((sp.start, sp.text))
+
+    seen: set[str] = set()
+    for _, text in sorted(hits):
+        if text in seen:
+            continue
+        seen.add(text)
+        _slot(s, text)
+
     m = _CONF_RE.search(question)
+    if m:
+        s.conf = float(m.group(1))
+    m = _LIMIT_RE.search(question)
+    if m:
+        s.limit = int(m.group(1))
+    m = _IMGID_RE.search(question)
+    if m:
+        s.image_id = m.group(1)
+    return s
+
+
+PATH_PLACEHOLDER = "[路径已移除]"
+
+
+def strip_paths(text: str, base: str | Path | None = None) -> str:
+    """把文本里会被 `extract` 认成路径的片段抹掉。
+
+    存在的理由不是整洁，是权限：服务端只让前端用 `image_id` 指图，图的真实路径
+    由服务端自己拼。如果用户能在问题里写路径，这个接口就等于一次任意文件读取，
+    连"文件在不在"都会从错误信息里漏出去。
+
+    所以它必须和 `extract` 共用一份判据。两处各写一条正则的结果是：这一版给
+    抽取加了相对路径，抹除没跟上——用户改写成 `runs/uploads/x.jpg` 就绕过去了。
+
+    相对路径只在真存在时才抹：不存在的保留原文，否则 `株/平米` 会被抹成占位符，
+    一句正常的水肥问题就变成了乱码。
+    """
+    root = Path(base) if base is not None else Path.cwd()
+    spans = [sp for sp in _path_spans(text, root)
+             if sp.exists or (sp.absolute and not sp.glued)]
+    if not spans:
+        return text
+    out, cursor = [], 0
+    for sp in sorted(spans, key=lambda x: x.start):
+        if sp.start < cursor:  # 与前一段重叠（`a/b.jpg` 里的绝对片段）
+            continue
+        out.append(text[cursor:sp.start])
+        out.append(PATH_PLACEHOLDER)
+        cursor = sp.end
+    out.append(text[cursor:])
+    return "".join(out)
     if m:
         s.conf = float(m.group(1))
     m = _LIMIT_RE.search(question)

@@ -38,9 +38,9 @@ def cmd_ask(args) -> int:
 
     question = args.question
     if args.image:
-        # 必须注入绝对路径：pipeline 的路径正则要求「盘符+分隔符」或开头的 `/`，
-        # `examples/sample.jpg` 会被截成 `\sample.jpg`（从第一个分隔符开始），
-        # 然后报「文件不存在」——实测踩到过。相对路径在这里解析，别留给下层猜。
+        # 注入绝对路径。相对路径现在也能被抽出（靠"磁盘上存在"判定），但注入侧
+        # 仍然先解析：这样问题文本里只有一条唯一确定的路径，日志和错误信息不会
+        # 出现「同一个文件两种写法」，也不会出现"注入时的 cwd 与读取时的 cwd 不同"。
         image_path = Path(args.image).expanduser().resolve()
         question = f"{question}\n图片路径：{image_path}"
 
