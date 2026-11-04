@@ -461,6 +461,17 @@ def render_md(meta: dict, agg: dict, rows: list[dict]) -> str:
     L.append(f"- 任务：{agg['n_tasks']} 条，计入 {agg['n_ok']}，跳过 {agg['n_skip']}，"
              f"环境故障 {agg['n_error']}")
     L.append("")
+    if agg["n_error"]:
+        # 环境故障不计入分母是对的（把"没跑到"算成通过会虚高，算成失败会冤枉），
+        # 但它会让总分只覆盖一部分任务，而"100%"这种头条数字读起来像全量。
+        # 实测踩过一次：6 条需要 Agent 的任务全因额度耗尽被剔除，剩下 23 条
+        # 全是规则命中，于是报告写着"升级率 0%"——看着像泛化好，其实一个模型都没调。
+        dropped = "、".join(r["id"] for r in rows if r.get("status") == "error")
+        L.append(f"> **这个分数只覆盖 {agg['n_ok']}/{agg['n_tasks']} 条。** "
+                 f"另有 {agg['n_error']} 条属于环境故障（额度、超时、鉴权），未计入分母："
+                 f"`{dropped}`。")
+        L.append("> 不计入是诚实的，但**不能和全量报告直接比**——先看清缺的是哪一类任务。")
+        L.append("")
     if meta["provider"] == "mock":
         L.append("> **这份分数不代表模型能力。** `mock` 是按预设脚本行动的替身")
         L.append("> （检测→看 n_low→复核→收束），不读问题。用它跑是为了验证")
