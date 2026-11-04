@@ -1,0 +1,267 @@
+{
+  "meta": {
+    "model": "qwen3.5-omni-plus",
+    "mode": "grid",
+    "n": 12,
+    "grid": 4,
+    "conf": 0.25,
+    "weights": "D:\\cabbage_project\\runs\\detect\\base_v2_repro\\weights\\best.pt",
+    "prompt_tokens": 14883,
+    "completion_tokens": 1498,
+    "time": "2026-11-04 21:14:05"
+  },
+  "summary": [
+    {
+      "name": "detector",
+      "n": 12,
+      "gt_total": 606,
+      "pred_total": 657,
+      "bias": 4.25,
+      "mae": 4.25,
+      "mape": 8.84,
+      "exact": 8.3,
+      "within3": 50.0
+    },
+    {
+      "name": "vlm_grid4x4",
+      "n": 6,
+      "gt_total": 266,
+      "pred_total": 520,
+      "bias": 42.33,
+      "mae": 42.33,
+      "mape": 96.97,
+      "exact": 0.0,
+      "within3": 0.0
+    }
+  ],
+  "rows": [
+    {
+      "stem": "img_157",
+      "gt": 36,
+      "detector": 42,
+      "vlm_direct": null,
+      "vlm_grid": 85,
+      "grid_parts": [
+        5,
+        6,
+        6,
+        6,
+        5,
+        2,
+        6,
+        6,
+        4,
+        6,
+        5,
+        5,
+        4,
+        9,
+        6,
+        4
+      ]
+    },
+    {
+      "stem": "img_280",
+      "gt": 41,
+      "detector": 43,
+      "vlm_direct": null,
+      "vlm_grid": 81,
+      "grid_parts": [
+        5,
+        6,
+        6,
+        5,
+        4,
+        6,
+        6,
+        4,
+        6,
+        9,
+        6,
+        4,
+        2,
+        6,
+        2,
+        4
+      ]
+    },
+    {
+      "stem": "img_274",
+      "gt": 44,
+      "detector": 45,
+      "vlm_direct": null,
+      "vlm_grid": 77,
+      "grid_parts": [
+        6,
+        5,
+        6,
+        6,
+        5,
+        5,
+        9,
+        4,
+        4,
+        6,
+        4,
+        3,
+        5,
+        6,
+        2,
+        1
+      ]
+    },
+    {
+      "stem": "img_145",
+      "gt": 46,
+      "detector": 57,
+      "vlm_direct": null,
+      "vlm_grid": null,
+      "grid_parts": [
+        2,
+        2,
+        4,
+        3,
+        5,
+        5,
+        6,
+        6,
+        1,
+        5,
+        6,
+        6,
+        7,
+        7
+      ]
+    },
+    {
+      "stem": "img_221",
+      "gt": 47,
+      "detector": 48,
+      "vlm_direct": null,
+      "vlm_grid": 75,
+      "grid_parts": [
+        6,
+        3,
+        5,
+        6,
+        6,
+        5,
+        6,
+        6,
+        6,
+        6,
+        4,
+        3,
+        2,
+        4,
+        5,
+        2
+      ]
+    },
+    {
+      "stem": "img_279",
+      "gt": 48,
+      "detector": 52,
+      "vlm_direct": null,
+      "vlm_grid": 115,
+      "grid_parts": [
+        3,
+        5,
+        2,
+        6,
+        6,
+        6,
+        6,
+        6,
+        12,
+        9,
+        13,
+        9,
+        5,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "stem": "img_271",
+      "gt": 50,
+      "detector": 56,
+      "vlm_direct": null,
+      "vlm_grid": 87,
+      "grid_parts": [
+        7,
+        7,
+        6,
+        6,
+        9,
+        6,
+        1,
+        6,
+        5,
+        4,
+        6,
+        5,
+        4,
+        3,
+        6,
+        6
+      ]
+    },
+    {
+      "stem": "img_66",
+      "gt": 51,
+      "detector": 54,
+      "vlm_direct": null,
+      "vlm_grid": null,
+      "grid_parts": [
+        5,
+        6,
+        6,
+        2,
+        6,
+        5,
+        5,
+        5,
+        5,
+        4
+      ]
+    },
+    {
+      "stem": "img_188",
+      "gt": 54,
+      "detector": 59,
+      "vlm_direct": null,
+      "vlm_grid": null,
+      "grid_parts": []
+    },
+    {
+      "stem": "img_343",
+      "gt": 57,
+      "detector": 66,
+      "vlm_direct": null,
+      "vlm_grid": null,
+      "grid_parts": []
+    },
+    {
+      "stem": "img_294",
+      "gt": 61,
+      "detector": 64,
+      "vlm_direct": null,
+      "vlm_grid": null,
+      "grid_parts": []
+    },
+    {
+      "stem": "img_316",
+      "gt": 71,
+      "detector": 71,
+      "vlm_direct": null,
+      "vlm_grid": null,
+      "grid_parts": [
+        7,
+        9,
+        5
+      ]
+    }
+  ]
+}
