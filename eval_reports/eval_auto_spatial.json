@@ -1,0 +1,133 @@
+{
+  "meta": {
+    "provider": "auto",
+    "model": "qwen3.8-27b",
+    "time": "2026-11-04 17:39:33",
+    "data_root": "D:\\cabbage_project\\dataset\\test\\images",
+    "max_steps": 6
+  },
+  "aggregate": {
+    "n_tasks": 3,
+    "n_ok": 3,
+    "n_skip": 0,
+    "n_error": 0,
+    "overall_pass": 1.0,
+    "tool_selection": 1.0,
+    "call_budget": 1.0,
+    "param_accuracy": null,
+    "answer_ok": 1.0,
+    "error_recovery": null,
+    "hallucination_rate": 0.0,
+    "n_hallucinated_tasks": 0,
+    "avg_steps": 1.6666666666666667,
+    "avg_turns": 1.6666666666666667,
+    "n_error_recovery_exercised": 0,
+    "n_rule": 0,
+    "n_agent": 3,
+    "escalation_rate": 1.0,
+    "pass_rule": null,
+    "pass_agent": 1.0,
+    "by_category": {
+      "spatial": {
+        "n": 3,
+        "pass": 1.0,
+        "tool": 1.0,
+        "avg_steps": 1.6666666666666667
+      }
+    }
+  },
+  "rows": [
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": true,
+      "called": [
+        "detect_cabbage",
+        "refine_detection"
+      ],
+      "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
+      "answer": "**结论：分布相当均匀，没有空着的格子。**\n\n依据（4×4 网格，按框中心点归属）：\n\n- **空格数 = 0**：16 个格子里每一格都有甘蓝，不存在\"空着\"的区域。\n- **均匀性**：vmr（方差均值比）= 0.18，远低于随机分布的 1.0，判定为\"比随机更规则\"——说明株位排布比随机撒点还要规整，接近成行成列的种植格局。\n- **具体格数**：最密的格是第 2 行第 1 列（5 株），最稀的格是左上角和右下角（各 2 株），平均每格 3.1 株，格间差距很小。\n- 全图共检出 **49 株**（conf 阈值 0.25）；换 0.4 阈值复核为 48 株，差异仅 1 株（约 2%），判定 stable，计数可信。\n\n需要说明：这是**相对本图**的结论——图像是裁出来的，网格反映的是这张图内部的分布，不等于整块田间的分布。",
+      "unsourced": [],
+      "n_answer_numbers": 17,
+      "stopped_reason": "stop",
+      "elapsed_s": 22.64,
+      "reasons": [],
+      "id": "S1",
+      "cat": "spatial",
+      "status": "ok",
+      "question": "这张图里的甘蓝分布得均匀吗，有没有哪块是空着的？图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "grid 只有 detect_cabbage 返回，count_cabbage 答不了。4×4 之外的行列号是编的",
+      "route": "agent",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": true,
+      "called": [
+        "detect_cabbage"
+      ],
+      "n_calls": 1,
+      "n_turns": 1,
+      "saw_error": false,
+      "exempt": false,
+      "answer": "**最密格 5 株，最稀格 2 株。**\n\n依据（4×4 网格，行优先，左上为 [0][0]）：\n- 最密：第 2 行第 1 列，5 株\n- 最稀：第 1 行第 1 列 和 第 4 行第 4 列，各 2 株\n- 全图共 49 株，平均每格 3.1 株，无空格（随机分布下预期约 0.7 个空格）\n- 分布比随机更规则（vmr = 0.18，随机 = 1）\n\n说明：这是相对本图的格间对比，不代表田间实际地块分布。",
+      "unsourced": [],
+      "n_answer_numbers": 19,
+      "stopped_reason": "stop",
+      "elapsed_s": 6.92,
+      "reasons": [],
+      "id": "S2",
+      "cat": "spatial",
+      "status": "ok",
+      "question": "最密的那一块有几株，最稀的那块有几株？图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "grid.max_cell / min_cell 直接给了；数字仍要过溯源检查",
+      "route": "agent",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": true,
+      "called": [
+        "detect_cabbage",
+        "search_docs"
+      ],
+      "n_calls": 2,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
+      "answer": "**结论：无法给出缺苗率，但从本图看没有缺苗迹象。**\n\n**为什么算不了缺苗率**\n- 缺苗率需要地面标定的理论株距（每格应有多少株）作基准，本数据集没有标定，工具也不提供这个量（`docs/knowledge/spatial.md#不能说什么`）。所以\"缺苗率大概多少\"我给不出数字。\n\n**本图能看到的分布情况**（4×4 网格，相对本图而言）\n- 检出 49 株，密度分级 moderate，覆盖率 0.448\n- 16 个格子里**没有空格**（`empty_cells=0`，而随机分布下期望约 0.7 个空格——空格比随机还少，不能读成缺苗或空地，`docs/knowledge/spatial.md#「有空格」说明什么`）\n- 最密格 5 株、最稀格 2 株，vmr=0.18，pattern 为\"比随机更规则\"，说明株距比较规整，不是稀稀拉拉的缺苗形态\n\n**注意**：这是相对本图（1024×1024 裁片）的判断，不代表整块田的分布。另外有 2 个低置信框（最低 0.391），如需更稳的株数我可以换阈值复核一次。",
+      "unsourced": [],
+      "n_answer_numbers": 14,
+      "stopped_reason": "stop",
+      "elapsed_s": 21.68,
+      "reasons": [],
+      "id": "S3",
+      "cat": "spatial",
+      "status": "ok",
+      "question": "这块地缺苗严重吗？缺苗率大概多少？图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "没有地面标定就算不出缺苗率。空格数可以报，把空格折算成百分比也可以， 但字面上给了\"缺苗率 X%\"就是编造",
+      "route": "agent",
+      "expect_error": false,
+      "has_arg_checks": false
+    }
+  ]
+}

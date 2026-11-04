@@ -105,9 +105,74 @@ class DetectionResult:
             "h_median": round(hs[len(hs) // 2], 1),
         }
 
+    def grid(self, n: int = 4) -> dict:
+        """把画面均分成 n×n 格，统计每格株数，用于回答"分布均匀吗"。
+
+        口径四件事，缺一个就会变成另一组数字：
+
+        1 **按框中心点归属**，不按面积分摊。一个框只落一格，所以
+           counts 求和恒等于 count——用户拿总株数一加就能核对。按面积分摊
+           会出现 3.4 株这种值，反而没法核。
+        2 **坐标轴是图像，不是地块**。图像本身是裁出来的，图内均匀不代表
+           田间均匀，所以只给"相对本图"的判断，不给农学结论。
+        3 **空格要显式列出来，同时给出随机基线**。"有没有哪块是空的"问的
+           就是这个；但空格本身不是证据——格子越小、株数越少，随机撒点也会留空。
+           所以同时给 empty_if_random，让"3 格空着"能被对照成"随机本来就会空 6 格"。
+        4 **判断用 VMR 而不是变异系数**。VMR = 方差 / 均值，是空间点格局里
+           数格子（quadrat count）的标准检验量：随机分布约为 1，<1 比随机更规则，
+           >1 有聚集。CV 会随 n 变而漂——实测同一张图 n=4 时 CV=0.30、
+           n=6 时 0.52，同一套阈值会把"格变小"误判成"分布变差"；VMR 在两种
+           粒度下分别是 0.35 和 0.47，结论一致。
+        """
+        n = max(2, min(int(n), 8))
+        cells = [[0] * n for _ in range(n)]
+        if self.width > 0 and self.height > 0:
+            for b in self.boxes:
+                col = min(max(int(b.cx / self.width * n), 0), n - 1)
+                row = min(max(int(b.cy / self.height * n), 0), n - 1)
+                cells[row][col] += 1
+
+        flat = [c for r in cells for c in r]
+        n_cells = n * n
+        total = sum(flat)
+        mean = total / n_cells
+        var = sum((c - mean) ** 2 for c in flat) / n_cells
+        vmr = (var / mean) if mean > 0 else 0.0
+
+        empty = [[r, c] for r in range(n) for c in range(n) if cells[r][c] == 0]
+        mx, mn = max(flat), min(flat)
+        mx_pos = next([r, c] for r in range(n) for c in range(n) if cells[r][c] == mx)
+        mn_pos = next([r, c] for r in range(n) for c in range(n) if cells[r][c] == mn)
+
+        out: dict = {
+            "n": n,
+            "counts": cells,
+            "cell_sum": total,
+            "mean_per_cell": round(mean, 1),
+            "max_cell": [*mx_pos, mx],
+            "min_cell": [*mn_pos, mn],
+            "empty_cells": len(empty),
+            # 随机撒同样的点数，期望空几格：n² · e^(-λ)。空格判断的基线。
+            "empty_if_random": round(n_cells * _EXP_NEG(mean), 1),
+            "vmr": round(vmr, 2),
+            "pattern": _pattern_label(vmr, mean),
+            "basis": "框中心点归属；vmr=方差/均值，随机=1；坐标轴为图像，非地块",
+        }
+        if empty:
+            # 只列前 8 个：n=8 时最多 64 格，全列会挤掉别的字段
+            out["empty_positions"] = empty[:8]
+            if len(empty) > 8:
+                out["empty_positions_omitted"] = len(empty) - 8
+        return out
+
     # ---- 两套视图 ----
     def summary(self, head: int = 3) -> dict:
-        """默认视图：统计 + 少量代表框。"""
+        """默认视图：统计 + 少量代表框 + 4×4 网格。
+
+        网格默认就给：模型回答"分布均匀吗"时若手上没有这个字段，会拿
+        boxes_head 的 3 个坐标去脑补出一张 4×4 表（实测发生过）。补数据
+        比在提示词里反复叮嘱有用——约束能拦住编造，拦不住不会。
+        """
         return {
             "image_id": self.image_id,
             "size": [self.width, self.height],
@@ -118,6 +183,7 @@ class DetectionResult:
             "conf_threshold": self.conf_threshold,
             "conf_stats": self.conf_stats(),
             "box_size_px": self.size_stats(),
+            "grid": self.grid(4),
             "elapsed_ms": round(self.elapsed_ms, 1),
             "device": self.device,
             "boxes_head": [b.to_list() for b in self.boxes[:head]],
@@ -145,3 +211,30 @@ class DetectionResult:
         if self.count < q3:
             return "dense"
         return "very_dense"
+
+
+def _EXP_NEG(x: float) -> float:
+    import math
+
+    return math.exp(-x)
+
+
+def _pattern_label(vmr: float, mean: float) -> str:
+    """把 VMR 翻成一句人话。
+
+    阈值 0.8 / 1.3 不是农学标准，是照着实测分布定的：30 张验证图的 VMR
+    在 n=4 时落在 0.12~0.51、n=6 时 0.17~0.92，**没有一张超过 1**。
+    也就是说这批图全都比随机撒点更规整（甘蓝是定植的，株行距本身就齐），
+    "有聚集"这一档在验证集上一次都没触发——它是对超出已验证范围的情况
+    报警，不是"看起来不均"的形容词。
+
+    mean < 1.5 时不给判断：格子数远多于株数时，VMR 的抽样波动比信号大，
+    这时候报"规则"或"聚集"都是噪声。宁可说判断不了。
+    """
+    if mean < 1.5:
+        return "样本过少，不足以判断格局"
+    if vmr < 0.8:
+        return "比随机更规则"
+    if vmr <= 1.3:
+        return "接近随机"
+    return "有聚集"

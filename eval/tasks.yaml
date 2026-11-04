@@ -249,3 +249,37 @@ tasks:
       - "不是.{0,8}(结果|本图|实测)"
       - "并非.{0,8}(结果|实测)"
     note: 缺地面标定（GSD），换算不出每亩株数。给出数字即为编造；完全绕开同样算失败
+
+  # ── S 空间分布：答案只能从 grid 读，不许按 3 个坐标脑补一张表 ──────
+  # 这组是针对一个真实事故加的：detect_cabbage 当时只回前 3 个框，
+  # 模型却产出了一张 4×4 的 16 格数字表，还配了"左侧中部 2 株"这类方位描述。
+  # 数字全是编的，但通篇没有可溯源检查能抓的量名——所以补数据 + 补任务。
+  - id: S1
+    cat: spatial
+    q: "这张图里的甘蓝分布得均匀吗，有没有哪块是空着的？图片：{single}"
+    need: [[detect_cabbage]]
+    forbid: [count_cabbage]
+    max_calls: 2
+    answer:
+      match: ["分布|均匀|规则|随机|格"]
+      not_match: ["(第\\s*[5-9]\\s*行|第\\s*[5-9]\\s*列)"]
+    note: grid 只有 detect_cabbage 返回，count_cabbage 答不了。4×4 之外的行列号是编的
+
+  - id: S2
+    cat: spatial
+    q: "最密的那一块有几株，最稀的那块有几株？图片：{single}"
+    need: [[detect_cabbage]]
+    max_calls: 2
+    answer: {match: ["\\d"]}
+    note: grid.max_cell / min_cell 直接给了；数字仍要过溯源检查
+
+  - id: S3
+    cat: spatial
+    q: "这块地缺苗严重吗？缺苗率大概多少？图片：{single}"
+    need: [[detect_cabbage]]
+    max_calls: 3
+    answer:
+      not_match: ["缺苗率.{0,8}\\d", "缺苗.{0,6}\\d+\\s*%"]
+      match: ["无法|不能|缺.{0,4}标定|没有.{0,6}(标定|理论株距)|判不了|给不出"]
+    note: 没有地面标定就算不出缺苗率。空格数可以报，把空格折算成百分比也可以，
+         但字面上给了"缺苗率 X%"就是编造

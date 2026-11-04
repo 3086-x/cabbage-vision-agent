@@ -1,0 +1,133 @@
+{
+  "meta": {
+    "provider": "dashscope",
+    "model": "qwen3.8-27b",
+    "time": "2026-11-04 17:35:53",
+    "data_root": "D:\\cabbage_project\\dataset\\test\\images",
+    "max_steps": 6
+  },
+  "aggregate": {
+    "n_tasks": 3,
+    "n_ok": 3,
+    "n_skip": 0,
+    "n_error": 0,
+    "overall_pass": 1.0,
+    "tool_selection": 1.0,
+    "call_budget": 1.0,
+    "param_accuracy": null,
+    "answer_ok": 1.0,
+    "error_recovery": null,
+    "hallucination_rate": 0.0,
+    "n_hallucinated_tasks": 0,
+    "avg_steps": 1.6666666666666667,
+    "avg_turns": 1.3333333333333333,
+    "n_error_recovery_exercised": 0,
+    "n_rule": 0,
+    "n_agent": 3,
+    "escalation_rate": 1.0,
+    "pass_rule": null,
+    "pass_agent": 1.0,
+    "by_category": {
+      "spatial": {
+        "n": 3,
+        "pass": 1.0,
+        "tool": 1.0,
+        "avg_steps": 1.6666666666666667
+      }
+    }
+  },
+  "rows": [
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": true,
+      "called": [
+        "detect_cabbage"
+      ],
+      "n_calls": 1,
+      "n_turns": 1,
+      "saw_error": false,
+      "exempt": false,
+      "answer": "**结论：分布比较均匀，没有空着的格子。**\n\n依据（4×4 网格逐格株数，左上角为 [0][0]）：\n\n| | 列1 | 列2 | 列3 | 列4 |\n|---|---|---|---|---|\n| 行1 | 2 | 3 | 2 | 3 |\n| 行2 | **5** | 3 | 3 | 3 |\n| 行3 | 4 | 3 | 3 | 3 |\n| 行4 | 4 | 3 | 3 | 2 |\n\n- 全图共 49 株，平均每格 3.1 株；最密格 5 株（第 2 行第 1 列），最稀格 2 株（左上角），各格都在 2~5 之间，没有空格。\n- 离散程度 VMR = 0.18，远低于随机分布的 1，判定为\"比随机更规则\"；空格数 0，也低于随机情况下预期的 0.7 个，说明连\"随机水平的空缺\"都没有，谈不上缺苗或空地。\n- 整体密度分级为 moderate（中等，相对本数据集的标签）。\n\n注意：这个\"均匀\"是**相对本张裁切图**而言的，不代表整块田的分布。另外本次检测有 2 个低置信框（共 49 株中占比很小），如果你需要更严格的株数复核，我可以换个阈值再核一遍。",
+      "unsourced": [],
+      "n_answer_numbers": 42,
+      "stopped_reason": "stop",
+      "elapsed_s": 17.4,
+      "reasons": [],
+      "id": "S1",
+      "cat": "spatial",
+      "status": "ok",
+      "question": "这张图里的甘蓝分布得均匀吗，有没有哪块是空着的？图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "grid 只有 detect_cabbage 返回，count_cabbage 答不了。4×4 之外的行列号是编的",
+      "route": "agent",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": true,
+      "called": [
+        "detect_cabbage"
+      ],
+      "n_calls": 1,
+      "n_turns": 1,
+      "saw_error": false,
+      "exempt": false,
+      "answer": "**最密的一块 5 株，最稀的一块 2 株**（4×4 网格，共 49 株，平均每格 3.1 株）。\n\n依据（`detect_cabbage` 的 grid 字段）：\n- 最密格：第 2 行第 1 列，5 株\n- 最稀格：第 1 行第 1 列，2 株\n- 16 格中无空格（随机情况下预期约 0.7 个空格，实际 0 个），变异性系数 vmr=0.18，整体\"比随机更规则\"，分布相对均匀\n\n注意：这是**相对本图**的划分结论，图像是裁出来的，不代表整块田的分布。",
+      "unsourced": [],
+      "n_answer_numbers": 16,
+      "stopped_reason": "stop",
+      "elapsed_s": 7.36,
+      "reasons": [],
+      "id": "S2",
+      "cat": "spatial",
+      "status": "ok",
+      "question": "最密的那一块有几株，最稀的那块有几株？图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "grid.max_cell / min_cell 直接给了；数字仍要过溯源检查",
+      "route": "agent",
+      "expect_error": false,
+      "has_arg_checks": false
+    },
+    {
+      "tool_ok": true,
+      "calls_ok": true,
+      "param_ok": true,
+      "path_ok": true,
+      "answer_ok": true,
+      "recover_ok": true,
+      "passed": true,
+      "called": [
+        "detect_cabbage",
+        "search_docs",
+        "refine_detection"
+      ],
+      "n_calls": 3,
+      "n_turns": 2,
+      "saw_error": false,
+      "exempt": false,
+      "answer": "**结论：从这张图看不出缺苗严重，而且缺苗率算不出来。**\n\n**依据：**\n\n1. **检测计数**：conf=0.25 检出 49 株，密度分级 moderate；低置信框有 2 个，换阈值复核（conf=0.15）后为 50 株，差异 1 株（2%），判定 stable，计数可信。\n\n2. **分布相对本图是均匀的**：4×4 网格逐格株数为 2~5 株，平均 3.1 株/格，**空格数为 0**，比随机期望（0.7 个）还少，变异系数 vmr=0.18，pattern 为\"比随机更规则\"。也就是说，这张裁片里连\"偏空的格子\"都没有，更谈不上缺苗迹象。注意这是**相对本图**的判断，图像是田里裁出来的一块，不代表整块田的分布。\n\n3. **缺苗率无法给出**：按项目口径（`docs/knowledge/spatial.md#不能说什么`），缺苗率需要地面标定的理论株距/株数，本数据集没有标定，不能换算；同样也不能由\"空格数\"直接推缺苗——本图空格比随机还少，读成缺苗方向是反的（`docs/knowledge/spatial.md#「有空格」说明什么`）。\n\n如果你想评估整块地的缺苗情况，需要：整幅地块图（而非单张裁片）+ 地面标定（株距/行距或 GSD），这两项目前工具和数据集都不提供。",
+      "unsourced": [],
+      "n_answer_numbers": 18,
+      "stopped_reason": "stop",
+      "elapsed_s": 23.35,
+      "reasons": [],
+      "id": "S3",
+      "cat": "spatial",
+      "status": "ok",
+      "question": "这块地缺苗严重吗？缺苗率大概多少？图片：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
+      "note": "没有地面标定就算不出缺苗率。空格数可以报，把空格折算成百分比也可以， 但字面上给了\"缺苗率 X%\"就是编造",
+      "route": "agent",
+      "expect_error": false,
+      "has_arg_checks": false
+    }
+  ]
+}

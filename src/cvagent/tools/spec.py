@@ -104,9 +104,14 @@ def build_tools(engine) -> list[Tool]:
             "assessment": "偏暗" if mean < 60 else ("偏亮" if mean > 200 else "曝光正常"),
         }
 
-    def detect_cabbage(image_path: str, conf: float = 0.25, iou: float = 0.45, detail: str = "summary") -> dict:
+    def detect_cabbage(
+        image_path: str, conf: float = 0.25, iou: float = 0.45, detail: str = "summary", grid: int = 4
+    ) -> dict:
         res = engine.detect(image_path, conf=conf, iou=iou)
         payload = res.full() if detail == "full" else res.summary()
+        # summary 里固定带 4×4；要别的粒度才重算一次（纯 Python 遍历，不推理）
+        if grid != 4:
+            payload["grid"] = res.grid(grid)
         payload["ok"] = True
         return payload
 
@@ -244,8 +249,9 @@ def build_tools(engine) -> list[Tool]:
         Tool(
             name="detect_cabbage",
             description=(
-                "对单张航拍图做甘蓝检测，返回株数、密度分级、置信度分布、框尺寸分布，以及前几个框的坐标。"
-                "当用户关心『这张图里有多少株、长势密度如何』时用它。"
+                "对单张航拍图做甘蓝检测，返回株数、密度分级、置信度分布、框尺寸分布、"
+                "4×4 网格的逐格株数（回答『分布均不均匀、哪块空着』只能用这个字段），以及前几个框的坐标。"
+                "当用户关心『这张图里有多少株、长势密度如何、分布是否均匀』时用它。"
                 "detail=full 才返回全部框坐标，仅在需要逐个位置分析时使用。"
             ),
             parameters=_schema(
@@ -256,7 +262,13 @@ def build_tools(engine) -> list[Tool]:
                     "detail": {
                         "type": "string",
                         "enum": ["summary", "full"],
-                        "description": "summary 返回统计与前 3 个框（默认，省 token）；full 返回全部框坐标",
+                        "description": "summary 返回统计、网格与前 3 个框（默认，省 token）；full 返回全部框坐标",
+                    },
+                    "grid": {
+                        "type": "integer",
+                        "description": "网格粒度 n（n×n），默认 4，范围 2~8。只有需要更细/更粗的地块划分时才改",
+                        "minimum": 2,
+                        "maximum": 8,
                     },
                 },
                 ["image_path"],

@@ -139,6 +139,23 @@ class TestDetectionPayload(unittest.TestCase):
         self.assertEqual(out["count"], 48)
         self.assertNotIn("boxes", out)
 
+    def test_summary_carries_grid(self):
+        out = self.reg.dispatch("detect_cabbage", {"image_path": "x.jpg"})
+        # 默认就必须带网格：模型问"分布均匀吗"时手上没有这个字段，
+        # 就会拿 boxes_head 的 3 个坐标自己画一张表（真实事故）
+        self.assertIn("grid", out)
+        self.assertEqual(out["grid"]["n"], 4)
+        self.assertEqual(out["grid"]["cell_sum"], out["count"])
+
+    def test_grid_granularity_is_adjustable(self):
+        out = self.reg.dispatch("detect_cabbage", {"image_path": "x.jpg", "grid": 6})
+        self.assertEqual(out["grid"]["n"], 6)
+        self.assertEqual(out["grid"]["cell_sum"], 48)
+
+    def test_count_tool_has_no_grid(self):
+        # 省 token 的路径不背这个字段，所以"分布"这类问题必须走 detect_cabbage
+        self.assertNotIn("grid", self.reg.dispatch("count_cabbage", {"image_path": "x.jpg"}))
+
 
 class TestRefineFlow(unittest.TestCase):
     def test_refine_requires_prior_detection(self):

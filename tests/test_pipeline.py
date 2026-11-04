@@ -169,6 +169,22 @@ class TestRouting(unittest.TestCase):
         # 同一诉求用规则认识的写法，就该正常走 batch_limit，别一起放弃。
         self.assertEqual(self._r("先跑前 5 张，目录：D:/x", dirs=["D:/x"]), "batch_limit")
 
+    def test_spatial_asks_escalate_instead_of_counting_whole_image(self):
+        # 回归（实测）：「最密的那一块有几株」曾被 count 规则吞掉，
+        # 答成"整图 62 株"——数字对、问题错。空间问题规则层没有动作，必须交出去。
+        for q in (
+            "最密的那一块有几株，最稀的那块有几株？",
+            "这张图里的甘蓝分布得均匀吗？",
+            "有没有哪块是空着的？",
+            "这些甘蓝是不是扎堆长的？",
+        ):
+            self.assertIsNone(self._r(q, files=["a.jpg"]), q)
+
+    def test_spatial_guard_does_not_eat_box_size_stats(self):
+        # "尺寸分布"是统计量，不是空间格局，不能被一起挡掉。
+        self.assertEqual(self._r("这些框的尺寸分布", files=["a.jpg"]), "detect_boxes")
+        self.assertEqual(self._r("置信度偏低的框有几个", files=["a.jpg"]), "low_conf")
+
 
 class TestEscalation(unittest.TestCase):
     """分层路由的判据。这些错了不会报错，只会静默少升级或多升级。"""

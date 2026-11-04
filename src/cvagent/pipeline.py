@@ -124,6 +124,16 @@ _NEEDS_FILES = {"compare2": 2}
 # 所以这里判的是"意图存在"而不是"数值抽到了"。
 _SUBSET_RE = re.compile(r"(?:前|头|首|最前)\s*\d+\s*张")
 
+# 空间分布类提问：「最密的那块有几株」「分布均匀吗」「哪块空着」。
+# 这些问题的答案在 grid 字段里，而 `count` 规则只认「几株/多少株」——
+# 不挡的话，"最密的那一块有几株"会被当成整图计数，答出 62 株（实测）。
+# 这不是措辞问题：数字正确、问题答错，比拒答更糟。
+_SPATIAL_RE = re.compile(r"均匀|最密|最稀|最疏|哪块|哪片|哪个区域|空着|空格|扎堆|聚集|分布")
+
+# 但"尺寸分布/置信度分布"确实是统计量，属于 detect_boxes 那条路径，
+# 不能一起放弃。这两个例外按现成的措辞写死：宁可漏挡，不可误挡。
+_NONSPATIAL_DIST_RE = re.compile(r"尺寸分布|大小分布|框.{0,2}分布|置信度分布")
+
 
 def route(question: str, s: Slots) -> str | None:
     """返回意图名；匹配不到返回 None（宁可不做，也不猜）。"""
@@ -131,6 +141,10 @@ def route(question: str, s: Slots) -> str | None:
     # 退化成"跑全量"，交出一个看起来正常、实际答非所问的汇总——比说不出更糟。
     # 所以连一条规则都不试，直接放弃，让上层升级。
     if _SUBSET_RE.search(question) and s.limit is None:
+        return None
+
+    # 空间分布类：规则表里没有对应动作，交给 Agent（它读 grid）。
+    if _SPATIAL_RE.search(question) and not _NONSPATIAL_DIST_RE.search(question):
         return None
 
     for name, pat in _RULES:

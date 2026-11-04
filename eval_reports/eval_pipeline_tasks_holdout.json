@@ -2,7 +2,7 @@
   "meta": {
     "provider": "pipeline",
     "model": "pipeline/rules",
-    "time": "2026-11-03 23:41:37",
+    "time": "2026-11-04 17:38:02",
     "data_root": "D:\\cabbage_project\\dataset\\test\\images",
     "max_steps": 6
   },
@@ -12,16 +12,21 @@
     "n_skip": 0,
     "n_error": 0,
     "overall_pass": 0.375,
-    "tool_selection": 0.5,
-    "call_budget": 0.875,
+    "tool_selection": 0.375,
+    "call_budget": 1.0,
     "param_accuracy": 0.0,
     "answer_ok": 0.625,
     "error_recovery": 1.0,
     "hallucination_rate": 0.0,
     "n_hallucinated_tasks": 0,
-    "avg_steps": 0.625,
-    "avg_turns": 0.625,
+    "avg_steps": 0.375,
+    "avg_turns": 0.375,
     "n_error_recovery_exercised": 0,
+    "n_rule": 8,
+    "n_agent": 0,
+    "escalation_rate": 0.0,
+    "pass_rule": 0.375,
+    "pass_agent": null,
     "by_category": {
       "basic": {
         "n": 2,
@@ -32,8 +37,8 @@
       "batch": {
         "n": 2,
         "pass": 0.5,
-        "tool": 1.0,
-        "avg_steps": 2
+        "tool": 0.5,
+        "avg_steps": 1
       },
       "quality": {
         "n": 1,
@@ -78,7 +83,7 @@
       "answer": "无法确定要执行哪个动作。这条请求的措辞不在确定性规则的覆盖范围内，需要走 Agent 路径，或把请求改写成明确的动作（如『数一下这张图的株数』）。",
       "unsourced": [],
       "n_answer_numbers": 0,
-      "stopped_reason": "pipeline",
+      "stopped_reason": "pipeline_unrouted",
       "elapsed_s": 0.0,
       "reasons": [
         "没调 detect_cabbage/count_cabbage",
@@ -89,6 +94,7 @@
       "status": "ok",
       "question": "帮我瞧瞧这块地里大概几棵，给个数就行。图：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
       "note": "「几棵」而不是「几株」；「给个数就行」而不是「只要一个株数」",
+      "route": "rule",
       "expect_error": false,
       "has_arg_checks": false
     },
@@ -111,13 +117,14 @@
       "unsourced": [],
       "n_answer_numbers": 5,
       "stopped_reason": "pipeline",
-      "elapsed_s": 0.15,
+      "elapsed_s": 0.05,
       "reasons": [],
       "id": "H2",
       "cat": "basic",
       "status": "ok",
       "question": "这片长势算稀还是算密？图：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
       "note": "用「稀/密」问密度，规则里只写了「密度/长势/密不密」",
+      "route": "rule",
       "expect_error": false,
       "has_arg_checks": false
     },
@@ -137,7 +144,7 @@
       "answer": "无法确定要执行哪个动作。这条请求的措辞不在确定性规则的覆盖范围内，需要走 Agent 路径，或把请求改写成明确的动作（如『数一下这张图的株数』）。",
       "unsourced": [],
       "n_answer_numbers": 0,
-      "stopped_reason": "pipeline",
+      "stopped_reason": "pipeline_unrouted",
       "elapsed_s": 0.0,
       "reasons": [
         "没调 inspect_image",
@@ -148,6 +155,7 @@
       "status": "ok",
       "question": "这张对焦好像跑了，还能用吗？图：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
       "note": "「对焦跑了」是模糊的口语说法，没有任何一个规则词命中",
+      "route": "rule",
       "expect_error": false,
       "has_arg_checks": false
     },
@@ -167,7 +175,7 @@
       "answer": "无法确定要执行哪个动作。这条请求的措辞不在确定性规则的覆盖范围内，需要走 Agent 路径，或把请求改写成明确的动作（如『数一下这张图的株数』）。",
       "unsourced": [],
       "n_answer_numbers": 0,
-      "stopped_reason": "pipeline",
+      "stopped_reason": "pipeline_unrouted",
       "elapsed_s": 0.0,
       "reasons": [
         "没调 detect_cabbage/count_cabbage、refine_detection",
@@ -179,6 +187,7 @@
       "status": "ok",
       "question": "把门槛压到 0.2，数字会变吗？图：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
       "note": "「门槛」代指阈值、「压到」代指调整，规则里只有「阈值/降到/调到」",
+      "route": "rule",
       "expect_error": false,
       "has_arg_checks": true
     },
@@ -198,50 +207,49 @@
       "n_turns": 2,
       "saw_error": false,
       "exempt": false,
-      "answer": "目录内合计 4134 株，覆盖 2 页（单页上限 50，需分页才能覆盖全量），无失败。",
+      "answer": "目录内合计 4135 株，覆盖 2 页（单页上限 50，需分页才能覆盖全量），无失败。",
       "unsourced": [],
       "n_answer_numbers": 3,
       "stopped_reason": "pipeline",
-      "elapsed_s": 10.35,
+      "elapsed_s": 1.85,
       "reasons": [],
       "id": "H5",
       "cat": "batch",
       "status": "ok",
       "question": "整个文件夹扫一遍，报个总数。目录：D:\\cabbage_project\\dataset\\test\\images",
       "note": "「扫一遍/报个总数」，规则里写的是「多少株/目录」",
+      "route": "rule",
       "expect_error": false,
       "has_arg_checks": false
     },
     {
-      "tool_ok": true,
-      "calls_ok": false,
+      "tool_ok": false,
+      "calls_ok": true,
       "param_ok": false,
       "path_ok": true,
       "answer_ok": true,
       "recover_ok": true,
       "passed": false,
-      "called": [
-        "batch_detect",
-        "batch_detect"
-      ],
-      "n_calls": 2,
-      "n_turns": 2,
+      "called": [],
+      "n_calls": 0,
+      "n_turns": 0,
       "saw_error": false,
       "exempt": false,
-      "answer": "目录内合计 4134 株，覆盖 2 页（单页上限 50，需分页才能覆盖全量），无失败。",
+      "answer": "无法确定要执行哪个动作。这条请求的措辞不在确定性规则的覆盖范围内，需要走 Agent 路径，或把请求改写成明确的动作（如『数一下这张图的株数』）。",
       "unsourced": [],
-      "n_answer_numbers": 3,
-      "stopped_reason": "pipeline",
-      "elapsed_s": 10.27,
+      "n_answer_numbers": 0,
+      "stopped_reason": "pipeline_unrouted",
+      "elapsed_s": 0.0,
       "reasons": [
-        "轮次 2 超出 [0,1]（共 2 次调用）",
-        "limit=None 应 == 5"
+        "没调 batch_detect",
+        "batch_detect 未成功调用"
       ],
       "id": "H6",
       "cat": "batch",
       "status": "ok",
       "question": "先跑头 5 张试试水。目录：D:\\cabbage_project\\dataset\\test\\images",
       "note": "「头 5 张」而不是「前 5 张」——量词差异足以让 limit 抽取落空",
+      "route": "rule",
       "expect_error": false,
       "has_arg_checks": true
     },
@@ -261,7 +269,7 @@
       "answer": "无法确定要执行哪个动作。这条请求的措辞不在确定性规则的覆盖范围内，需要走 Agent 路径，或把请求改写成明确的动作（如『数一下这张图的株数』）。",
       "unsourced": [],
       "n_answer_numbers": 0,
-      "stopped_reason": "pipeline",
+      "stopped_reason": "pipeline_unrouted",
       "elapsed_s": 0.0,
       "reasons": [
         "没调 detect_cabbage/count_cabbage/inspect_image"
@@ -269,8 +277,9 @@
       "id": "H7",
       "cat": "recover",
       "status": "ok",
-      "question": "读一下这个文件：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_wvx52u77\\no_such_image.jpg",
+      "question": "读一下这个文件：C:\\Users\\HX\\AppData\\Local\\Temp\\cvagent_eval_pbgmzp8u\\no_such_image.jpg",
       "note": "请求里完全没有「检测/数/图」这些词，只有「读文件」",
+      "route": "rule",
       "expect_error": true,
       "has_arg_checks": false
     },
@@ -298,6 +307,7 @@
       "status": "ok",
       "question": "看看这些甘蓝有没有缺素症。图：D:\\cabbage_project\\dataset\\test\\images\\img_105.jpg",
       "note": "「缺素症」是营养诊断，与病害同属检测器能力之外",
+      "route": "rule",
       "expect_error": false,
       "has_arg_checks": false
     }
