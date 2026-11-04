@@ -256,6 +256,26 @@ GET  /api/health        模型是否就绪、设备、预热耗时
 
 `cvagent tools --json` 输出完整 JSON Schema。
 
+### 接到别的 MCP 客户端
+
+同一份工具表也能以 MCP 服务器形式跑，Claude Desktop / Cursor 之类可以直接用：
+
+```json
+{
+  "mcpServers": {
+    "cabbage-vision": {
+      "command": "cvagent",
+      "args": ["--device", "cuda:0", "mcp"]
+    }
+  }
+}
+```
+
+`--device` 是全局参数，必须写在 `mcp` 前面。实测握手 0.26 s、`tools/list` 0.02 s，
+**首次工具调用 31 s**（加载权重），之后每次 0.1 秒级——所以权重不放在握手里加载，
+嫌慢就加 `--warmup`。工具失败走 `isError: true` 而不是协议 error，`error.hint`
+跟着一起回，客户端里的模型才有机会改参数重试。细节与坑见 `docs/MCP.md`。
+
 ---
 
 ## 可验证性
@@ -376,8 +396,9 @@ src/cvagent/
 │              同时给出升级判据（escalate_reason）与交接文本（handoff）
 ├─ serve.py    把上面这些接成 Web 服务：上传隔离、SSE、分层标注、降级
 ├─ web/        单页前端。无构建、无框架，一个 HTML
+├─ mcp_server.py 同一份工具表做成 MCP 服务器（stdio）。schema 不另写一份
 ├─ report.py   轨迹落盘（trajectory.json + report.md）
-└─ cli.py      ask / detect / tools / doctor / models / setup-weights / replay / serve
+└─ cli.py      ask / detect / tools / doctor / models / setup-weights / replay / serve / mcp
 
 eval/
 ├─ tasks.yaml          29 条任务，每条带期望工具序列与可机器判定的答案约束

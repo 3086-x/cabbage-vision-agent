@@ -397,6 +397,21 @@ def cmd_serve(args) -> int:
     return 0
 
 
+def cmd_mcp(args) -> int:
+    """以 MCP 服务器方式运行（stdio），供 Claude Desktop / Cursor 等客户端接入。
+
+    注册表要惰性构造：`initialize` 和 `tools/list` 都不能等权重。工厂函数在这里
+    就闭包好了，真正调用发生在第一次工具调用（或 --warmup）时。
+    """
+    from . import mcp_server
+    from .tools.registry import default_registry
+
+    def factory():
+        return default_registry(_engine(args))
+
+    return mcp_server.main(factory, warmup=args.warmup)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="cvagent", description="甘蓝航拍图像分析 Agent")
     p.add_argument("--weights", help="权重路径，默认 weights/best.pt")
@@ -446,6 +461,11 @@ def build_parser() -> argparse.ArgumentParser:
     r = sub.add_parser("replay", help="重渲染 trajectory.json")
     r.add_argument("file")
     r.set_defaults(func=cmd_replay)
+
+    mc = sub.add_parser("mcp", help="以 MCP 服务器运行（stdio），供 Claude Desktop / Cursor 接入")
+    mc.add_argument("--warmup", action="store_true",
+                    help="启动即加载权重。默认惰性：先秒回 tools/list，第一次调用才加载")
+    mc.set_defaults(func=cmd_mcp)
 
     w = sub.add_parser("serve", help="起 Web 界面：拖图 + 对话，标注每步是规则还是模型")
     w.add_argument("--host", default="127.0.0.1")
