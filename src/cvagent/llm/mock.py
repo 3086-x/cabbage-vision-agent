@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import re
 
+from ..config import DEFAULT_CONF
 from .base import Completion, Message, ToolCall
 
 _PATH_RE = re.compile(r"[\w./\\:-]+\.(?:jpg|jpeg|png|bmp|tif|tiff|webp)", re.IGNORECASE)
@@ -49,7 +50,7 @@ class MockProvider:
             return Completion(
                 content=None,
                 tool_calls=[ToolCall(id="call_detect_1", name="detect_cabbage",
-                                     arguments=json.dumps({"image_path": path, "conf": 0.25}, ensure_ascii=False))],
+                                     arguments=json.dumps({"image_path": path, "conf": DEFAULT_CONF}, ensure_ascii=False))],
                 finish_reason="tool_calls",
             )
 

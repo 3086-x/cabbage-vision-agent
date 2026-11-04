@@ -12,6 +12,8 @@ import shutil
 import sys
 from pathlib import Path
 
+from .config import DEFAULT_CONF
+
 
 def _utf8_stdout() -> None:
     for stream in (sys.stdout, sys.stderr):
@@ -435,7 +437,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     d = sub.add_parser("detect", help="直接推理，不经 LLM")
     d.add_argument("image")
-    d.add_argument("--conf", type=float, default=0.25)
+    d.add_argument("--conf", type=float, default=DEFAULT_CONF)
     d.add_argument("--full", action="store_true", help="返回全部框坐标")
     d.set_defaults(func=cmd_detect)
 

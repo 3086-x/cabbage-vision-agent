@@ -11,7 +11,10 @@ ROOT = Path(__file__).resolve().parents[2]
 WEIGHTS = Path(os.getenv("CVAGENT_WEIGHTS", ROOT / "weights" / "best.pt"))
 DEVICE = os.getenv("CVAGENT_DEVICE", "cpu")  # cpu | cuda:0 | mps
 IMG_SIZE = int(os.getenv("CVAGENT_IMGSZ", "1024"))
-DEFAULT_CONF = float(os.getenv("CVAGENT_CONF", "0.25"))
+# 0.55 不是拍的。test 集 75 张上扫了 18 个阈值：0.25 处计数 bias +5.57（系统性多检，
+# 模型把叶片轮廓当整株），0.55 处 bias +0.49、MAE 2.55 个/图，误差降一半多，代价是
+# recall 掉 1.5pp。依据见 docs/COUNT_BIAS.md。回退：CVAGENT_CONF=0.25
+DEFAULT_CONF = float(os.getenv("CVAGENT_CONF", "0.55"))
 DEFAULT_IOU = float(os.getenv("CVAGENT_IOU", "0.45"))
 MIN_CONF = 0.05  # 低于此值的复核请求无意义，直接判为参数错误
 

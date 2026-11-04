@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from cvagent.agent.loop import Step, Trajectory  # noqa: E402
+from cvagent.config import DEFAULT_CONF  # noqa: E402
 from cvagent.pipeline import (  # noqa: E402
     Pipeline,
     escalate_reason,
@@ -289,7 +290,10 @@ class TestPipelineRun(unittest.TestCase):
 
     def test_count_answer_carries_observation_numbers(self):
         traj = self.pipe.run(f"这张图有多少株？{self.img}")
-        self.assertIn("48", traj.answer)
+        # 不断言具体株数：那个数字随默认阈值走，写死等于把"阈值调整"误报成回归。
+        # 这条测试要守的是"答案里的数字必须能在观测里找到"。
+        count = traj.steps[0].observation["count"]
+        self.assertIn(str(count), traj.answer)
         self.assertEqual(traj.stopped_reason, "pipeline")
         self.assertEqual(len(traj.steps), 1)
 
@@ -298,9 +302,9 @@ class TestPipelineRun(unittest.TestCase):
         # 不能夹到 1.0——1.0 合法但必然 0 株，等于把参数错误伪装成空结果。
         traj = self.pipe.run(f"用 conf=1.5 检测这张图：{self.img}")
         self.assertTrue(traj.steps[0].ok)
-        self.assertEqual(traj.steps[0].args["conf"], 0.25)
+        self.assertEqual(traj.steps[0].args["conf"], DEFAULT_CONF)
         self.assertIn("超出工具的 0.05~1.0", traj.answer)
-        self.assertIn("已改用 conf=0.25", traj.answer)
+        self.assertIn(f"已改用 conf={DEFAULT_CONF}", traj.answer)
 
     def test_conf_lower_bound_clamps_up(self):
         traj = self.pipe.run(f"用 conf=0.001 检测这张图：{self.img}")

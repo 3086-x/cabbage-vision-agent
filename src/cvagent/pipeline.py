@@ -525,7 +525,7 @@ class Pipeline:
         if not s.files:
             return "没有在请求里找到图片路径。"
         kw = {"image_path": s.files[0], "detail": "full"}
-        st = self._call("detect_cabbage", conf=s.conf if s.conf and 0 < s.conf <= 1 else 0.25, **kw)
+        st = self._call("detect_cabbage", conf=s.conf if s.conf and 0 < s.conf <= 1 else DEFAULT_CONF, **kw)
         if not st.ok:
             return self._err(st)
         o = st.observation
@@ -686,7 +686,7 @@ class Pipeline:
             args = {"directory": directory, "offset": offset}
             if limit:
                 args["limit"] = limit
-            st = self._call("batch_detect", conf=conf if conf and 0 < conf <= 1 else 0.25, **args)
+            st = self._call("batch_detect", conf=conf if conf and 0 < conf <= 1 else DEFAULT_CONF, **args)
             if not st.ok:
                 return self._err(st)
             o = st.observation
@@ -725,7 +725,7 @@ class Pipeline:
             return "没有在请求里找到目录路径。"
         n = s.limit or 3
         st = self._call("batch_detect", directory=s.dirs[0],
-                        conf=s.conf if s.conf and 0 < s.conf <= 1 else 0.25, limit=n)
+                        conf=s.conf if s.conf and 0 < s.conf <= 1 else DEFAULT_CONF, limit=n)
         if not st.ok:
             return self._err(st)
         o = st.observation

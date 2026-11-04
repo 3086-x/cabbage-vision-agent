@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 from .types import Box, DetectionResult
+from ..config import DEFAULT_CONF
 from ..errors import EngineError, ImageNotFound, InvalidArgument, NoDetection, UnsupportedFormat
 
 _SUPPORTED_EXT = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
@@ -112,7 +113,7 @@ class YoloEngine:
     def detect(
         self,
         image_path: str | Path,
-        conf: float = 0.25,
+        conf: float = DEFAULT_CONF,
         iou: float = 0.45,
         use_cache: bool = True,
     ) -> DetectionResult:

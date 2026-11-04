@@ -14,6 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from ..config import DEFAULT_CONF
+
 Handler = Callable[..., dict]
 
 
@@ -55,7 +57,7 @@ _IMAGE_PATH = {
 }
 _CONF = {
     "type": "number",
-    "description": "置信度阈值，0.05~1.0。越低检出越多但误检也越多。默认 0.25",
+    "description": f"置信度阈值，0.05~1.0。越低检出越多但误检也越多。计数任务默认 {DEFAULT_CONF}",
     "minimum": 0.05,
     "maximum": 1.0,
 }
@@ -105,7 +107,7 @@ def build_tools(engine) -> list[Tool]:
         }
 
     def detect_cabbage(
-        image_path: str, conf: float = 0.25, iou: float = 0.45, detail: str = "summary", grid: int = 4
+        image_path: str, conf: float = DEFAULT_CONF, iou: float = 0.45, detail: str = "summary", grid: int = 4
     ) -> dict:
         res = engine.detect(image_path, conf=conf, iou=iou)
         payload = res.full() if detail == "full" else res.summary()
@@ -115,7 +117,7 @@ def build_tools(engine) -> list[Tool]:
         payload["ok"] = True
         return payload
 
-    def count_cabbage(image_path: str, conf: float = 0.25, iou: float = 0.45) -> dict:
+    def count_cabbage(image_path: str, conf: float = DEFAULT_CONF, iou: float = 0.45) -> dict:
         res = engine.detect(image_path, conf=conf, iou=iou)
         return {
             "ok": True,
@@ -159,7 +161,7 @@ def build_tools(engine) -> list[Tool]:
             "note": "stability=stable 表示两次阈值下计数差异 <=5%，结论较可信",
         }
 
-    def batch_detect(directory: str, conf: float = 0.25, limit: int = 50, offset: int = 0) -> dict:
+    def batch_detect(directory: str, conf: float = DEFAULT_CONF, limit: int = 50, offset: int = 0) -> dict:
         from pathlib import Path
 
         from ..config import ROOT  # noqa: F401
