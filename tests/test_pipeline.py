@@ -282,6 +282,24 @@ class TestPipelineRun(unittest.TestCase):
         self.assertEqual(traj.steps, [])
         self.assertIn("无法确定", traj.answer)
 
+    def test_quality_answer_does_not_claim_sharpness(self):
+        # 观测量只有 mean_brightness / edge_strength，工具只判曝光。
+        # "亮度与锐度都在正常范围"是越权结论——纯 Agent 在 B3 上正是卡在这里，
+        # 翻遍知识库也找不到"多少算糊"的阈值。措辞只能到"排除明显糊"为止。
+        from PIL import Image, ImageDraw
+
+        p = self.dir / "textured.png"
+        im = Image.new("RGB", (128, 128), (120, 120, 120))
+        draw = ImageDraw.Draw(im)
+        for y in range(0, 128, 4):
+            draw.line([(0, y), (128, y)], fill=(240, 240, 240), width=2)
+        im.save(p)
+
+        traj = self.pipe.run(f"这张图是不是拍糊了？{p}")
+        self.assertEqual([s.tool for s in traj.steps], ["inspect_image"])
+        self.assertNotIn("锐度都在正常范围", traj.answer)
+        self.assertIn("没有标定阈值", traj.answer)
+
     def test_disease_is_refused_without_detection(self):
         # 拒答类必须先于检测：跑一次检测会给出一个误导性的株数
         traj = self.pipe.run(f"这些甘蓝有没有得病？{self.img}")

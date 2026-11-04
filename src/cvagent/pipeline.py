@@ -424,15 +424,20 @@ class Pipeline:
         o = st.observation
         scale = o.get("brightness_scale", 255)
         verdict = o["assessment"]
-        usable = verdict == "曝光正常" and o.get("edge_strength", 0) >= 3
+        edge = o.get("edge_strength", 0)
+        usable = verdict == "曝光正常" and edge >= 3
         head = "可以用" if usable else "不建议直接用于检测"
-        reason = []
-        if verdict != "曝光正常":
-            reason.append(f"平均亮度 {o['mean_brightness']}/{scale}，{verdict}")
-        if o.get("edge_strength", 0) < 3:
-            reason.append(f"边缘强度 {o['edge_strength']}（满分 {o.get('edge_scale')}），偏低，可能存在模糊")
+        # 只说观测支撑得住的话：工具只判曝光（assessment），edge_strength 没有
+        # 标定阈值，所以"锐度正常"是越权结论——纯 Agent 在 B3 上正是卡在这里，
+        # 反复翻文档找一个"多少算糊"的阈值，最后如实说找不到。
+        detail = [f"平均亮度 {o['mean_brightness']}/{scale}，{verdict}"]
+        if edge < 3:
+            detail.append(f"边缘强度 {edge}/{o.get('edge_scale')}，偏低，图像可能模糊")
+        else:
+            detail.append(f"边缘强度 {edge}/{o.get('edge_scale')}，未低于「明显模糊」的 3/255；"
+                          "这个量没有标定阈值，只能排除明显糊掉，不能断言很清晰")
         side = o.get("size")
-        return f"{head}。理由：{'；'.join(reason) or '亮度与锐度都在正常范围'}。图像 {side[0]}×{side[1]}，格式 {o['format']}。"
+        return f"{head}。{'；'.join(detail)}。图像 {side[0]}×{side[1]}，格式 {o['format']}。"
 
     def _quality_then_count(self, q: str, s: Slots) -> str:
         if not s.files:
