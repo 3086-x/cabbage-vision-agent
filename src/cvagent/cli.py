@@ -38,7 +38,11 @@ def cmd_ask(args) -> int:
 
     question = args.question
     if args.image:
-        question = f"{question}\n图片路径：{args.image}"
+        # 必须注入绝对路径：pipeline 的路径正则要求「盘符+分隔符」或开头的 `/`，
+        # `examples/sample.jpg` 会被截成 `\sample.jpg`（从第一个分隔符开始），
+        # 然后报「文件不存在」——实测踩到过。相对路径在这里解析，别留给下层猜。
+        image_path = Path(args.image).expanduser().resolve()
+        question = f"{question}\n图片路径：{image_path}"
 
     session = None
     extra_context = ""

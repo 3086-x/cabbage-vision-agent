@@ -37,6 +37,7 @@ import time
 from dataclasses import dataclass, field
 
 from .agent.loop import Step, Trajectory
+from .config import DEFAULT_CONF, MIN_CONF
 from .tools.registry import ToolRegistry
 
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
@@ -160,6 +161,22 @@ def route(question: str, s: Slots) -> str | None:
     return None
 
 
+# ─────────────────────────── 参数修复 ───────────────────────────
+def clamp_conf(conf: float) -> float:
+    """把越界的置信度阈值收敛到一个**有意义**的合法值。
+
+    上界不能夹到 1.0：1.0 合法，但以它为阈值几乎必然返回 0 株。实测（F2）：
+    conf=1.5 → 夹到 1.0 → NO_DETECTION → 升级给 Agent → Agent 顺着
+    「已试过 1.0 无结果」答了"可视为 0 株"，一个工具都没调。这等于把参数
+    错误伪装成一个正常的空结果。越界就退回默认阈值，并让答案写明改过。
+    """
+    if conf > 1:
+        return DEFAULT_CONF
+    if conf < MIN_CONF:
+        return MIN_CONF
+    return conf
+
+
 # ─────────────────────────── 升级策略 ───────────────────────────
 # 分层架构的分界线画在这里：pipeline 只处理「下一步动作在写代码时就确定」的请求，
 # 其余交给 Agent。判据必须能从 Trajectory 里机械地读出来，不能靠读答案文本猜——
@@ -198,7 +215,12 @@ def handoff(pre: Trajectory) -> str:
     if not pre.steps:
         return ""
     done = "；".join(s.brief() for s in pre.steps)
-    return f"[前置规则层] 已尝试：{done}。这一层无法收尾，请在此基础上继续判断。"
+    # 尾句必须点明「上面的调用是背景，不是结论」。
+    # 实测（F2，conf=1.5 越界）：原句「请在此基础上继续判断」被读成"直接下结论"，
+    # Agent 拿着 conf=1.0 的 NO_DETECTION 就答"可视为 0 株"，一个工具都没调。
+    # 规则层失败的那次调用只说明"那个参数不行"，不说明"换个参数也不行"。
+    return (f"[前置规则层] 已尝试：{done}。这一层没收尾，以上只是已执行过的调用记录，"
+            "不是结论：需要换参数重试就自己重新调用工具，不要直接沿用上面的结果作答。")
 
 
 # ─────────────────────────── 管线 ───────────────────────────
@@ -224,6 +246,7 @@ class Pipeline:
             stopped = "pipeline_unrouted"
         else:
             answer = getattr(self, f"_{intent}")(question, s)
+            answer = self._conf_note(s) + answer
             stopped = "pipeline"
 
         return Trajectory(
@@ -237,6 +260,19 @@ class Pipeline:
         )
 
     # ---- 执行原语 ----
+    def _conf_note(self, s: Slots) -> str:
+        """用户给的阈值被改过时，在答案前面说清楚。
+
+        静默替换比报错更糟：用户会以为「49 株」是 conf=1.5 的结果。
+        判据看实际调用参数，不看意图名——没调工具的任务（如拒答）自然不加。
+        """
+        if s.conf is None:
+            return ""
+        used = next((st.args.get("conf") for st in self._steps if st.args.get("conf") is not None), None)
+        if used is None or abs(float(used) - float(s.conf)) < 1e-9:
+            return ""
+        return f"（请求的 conf={s.conf:g} 超出工具的 0.05~1.0，已改用 conf={float(used):g}。）"
+
     def _call(self, tool: str, **args) -> Step:
         st = time.perf_counter()
         obs = self.tools.dispatch(tool, args)
@@ -254,17 +290,20 @@ class Pipeline:
         return step
 
     def _call_or_fix_conf(self, tool: str, conf: float | None, **kw) -> Step:
-        """conf 越界时收敛到合法区间重试一次。
+        """conf 越界时收敛到一个**有意义**的合法值，再跑一次。
 
         这就是 F2 那条任务要考的行为：模型会把 1.5 改小再试，规则代码同样能，
         而且不需要"理解"——它只是把参数夹到 schema 声明的范围里。
+
+        但"夹到 1.0"是错的：1.0 虽然是合法上界，可拿它当阈值几乎必然返回 0 株。
+        那样不是修正参数，而是把参数错误变成了一个看起来正常的空结果（实测：
+        夹到 1.0 → NO_DETECTION → 升级给 Agent → Agent 顺着"已试过 1.0 无结果"
+        回了"可视为 0 株"）。所以越界退回默认阈值，并在答案里写明改过。
         """
         if conf is None:
             return self._call(tool, **kw)
-        if not 0 < conf <= 1:
-            clamped = 1.0 if conf > 1 else 0.05
-            return self._call(tool, conf=clamped, **kw)
-        return self._call(tool, conf=conf, **kw)
+        fixed = clamp_conf(conf)
+        return self._call(tool, conf=fixed, **kw)
 
     @staticmethod
     def _err(step: Step) -> str:

@@ -229,6 +229,16 @@ class TestHandoff(unittest.TestCase):
         self.assertIn("count_cabbage", text)
         self.assertIn("49", text)
 
+    def test_handoff_says_prior_calls_are_not_a_conclusion(self):
+        # F2 实测：Agent 拿 conf=1.0 的 NO_DETECTION 直接答「可视为 0 株」，
+        # 一个工具都没调。规则层失败只说明"那个参数不行"，不说明"换个也不行"，
+        # 所以交接文本必须明确「以上是记录，不是结论，要重试就自己调」。
+        st = Step(index=0, tool="detect_cabbage", args={"conf": 1.0},
+                  observation={"ok": False, "error": {"code": "NO_DETECTION"}}, ok=False)
+        text = handoff(Trajectory(question="q", answer="a", steps=[st]))
+        self.assertIn("不是结论", text)
+        self.assertIn("重新调用", text)
+
 
 class TestPipelineRun(unittest.TestCase):
     def setUp(self):
@@ -250,10 +260,22 @@ class TestPipelineRun(unittest.TestCase):
         self.assertEqual(len(traj.steps), 1)
 
     def test_conf_out_of_range_is_clamped_not_crashed(self):
-        # F2 那条任务要的行为：1.5 越界，确定性代码把它夹到 1.0 再跑一次。
+        # F2 那条任务要的行为：1.5 越界，确定性代码把它改成一个有意义的值再跑。
+        # 不能夹到 1.0——1.0 合法但必然 0 株，等于把参数错误伪装成空结果。
         traj = self.pipe.run(f"用 conf=1.5 检测这张图：{self.img}")
         self.assertTrue(traj.steps[0].ok)
-        self.assertEqual(traj.steps[0].args["conf"], 1.0)
+        self.assertEqual(traj.steps[0].args["conf"], 0.25)
+        self.assertIn("超出工具的 0.05~1.0", traj.answer)
+        self.assertIn("已改用 conf=0.25", traj.answer)
+
+    def test_conf_lower_bound_clamps_up(self):
+        traj = self.pipe.run(f"用 conf=0.001 检测这张图：{self.img}")
+        self.assertEqual(traj.steps[0].args["conf"], 0.05)
+
+    def test_legal_conf_is_passed_through_without_note(self):
+        traj = self.pipe.run(f"用 conf=0.5 检测这张图：{self.img}")
+        self.assertEqual(traj.steps[0].args["conf"], 0.5)
+        self.assertNotIn("超出工具的", traj.answer)
 
     def test_unknown_intent_calls_no_tool(self):
         traj = self.pipe.run("随便聊两句吧")
